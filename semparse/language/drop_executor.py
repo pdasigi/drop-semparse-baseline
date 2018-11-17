@@ -524,11 +524,15 @@ class DropExecutor:
             raise ExecutionError(f"Unexpected filter value for filter_in: {value_expression}")
         if not isinstance(filter_value, str):
             raise ExecutionError(f"Unexpected filter value for filter_in: {value_expression}")
-        # Assuming filter value has underscores for spaces. The cell values also have underscores
-        # for spaces, so we do not need to replace them here.
+        # Assuming filter value has underscores for spaces, and are already lemmatized.
+        filter_lemmas = filter_value.split("_")
         result_list = []
         for structure in structure_list:
+            # Argument strings also have underscores for spaces.
             if filter_value in structure[relation_name].argument_string:
+                result_list.append(structure)
+            elif all([lemma in structure[relation_name].argument_lemmas for lemma in
+                      filter_lemmas]):
                 result_list.append(structure)
         return result_list
 
@@ -552,11 +556,14 @@ class DropExecutor:
             raise ExecutionError(f"Unexpected filter value for filter_in: {value_expression}")
         if not isinstance(filter_value, str):
             raise ExecutionError(f"Unexpected filter value for filter_in: {value_expression}")
-        # Assuming filter value has underscores for spaces. The cell values also have underscores
-        # for spaces, so we do not need to replace them here.
+        # Assuming filter value has underscores for spaces.
+        filter_lemmas = filter_value.split("_")
         result_list = []
         for structure in structure_list:
-            if filter_value not in structure[relation_name].argument_string:
+            # Argument strings also have underscores for spaces.
+            if filter_value not in structure[relation_name].argument_string and \
+               not all([lemma in structure[relation_name].argument_lemmas for lemma in
+                        filter_lemmas]):
                 result_list.append(structure)
         return result_list
 

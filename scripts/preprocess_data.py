@@ -30,7 +30,10 @@ def get_table_info(processed_passage: Doc,
             pas_parts = re.findall(r'\[[^]]*\]', verb_info['description'])
             for pas_part in pas_parts:
                 pas_part = pas_part[1:-1]  # remove opening and closing brackets
-                pas_key, pas_value = pas_part.split(": ")
+                pas_part_fields = pas_part.split(": ")
+                pas_key = pas_part_fields[0]
+                # This is because the argument can contain the string ": ".
+                pas_value = ": ".join(pas_part_fields[1:])
                 if pas_key == "V":
                     continue
                 if pas_key not in column_names:
@@ -59,19 +62,30 @@ def get_tagged_info(table_info: List[Dict[str, str]],
                 other_entities_in_sentence.append(entity.string)
         tagged_row_info: Dict[str, Dict[str]] = {}
         for relation_name, argument in row_info.items():
-            if relation_name in ['verb', 'sentence_id']:
+            if relation_name == 'sentence_id':
+                # We're not extracting lemma, numbers, dates or entities here.
                 tagged_row_info[relation_name] = argument
-                continue
-            numbers_in_argument = [number.strip() for number in numbers_in_sentence if number in
-                                   argument]
-            dates_in_argument = [date.strip() for date in dates_in_sentence if date in
-                                 argument]
-            entities_in_argument = [entity.strip() for entity in other_entities_in_sentence if entity in
-                                    argument]
-            tagged_row_info[relation_name] = {"argument_string": argument,
-                                              "numbers": numbers_in_argument,
-                                              "dates": dates_in_argument,
-                                              "entities": entities_in_argument}
+            elif relation_name == 'verb':
+                # We're only extracting the lemma here.
+                tagged_row_info[relation_name] = {"string": argument,
+                                                  "lemmas": [token.lemma_ for token in SPACY_NLP(argument)]}
+            else:
+                # We're assuming that any number, date, or entity that matches a substring in this
+                # argument was extracted by Spacy from this argument. This is not always correct. For
+                # example, if the sentence has the same number in multiple arguments, it shows up
+                # multiple times within each argument this way. But it is not a serious problem.
+                numbers_in_argument = [number.strip() for number in numbers_in_sentence if number in
+                                       argument]
+                dates_in_argument = [date.strip() for date in dates_in_sentence if date in
+                                     argument]
+                entities_in_argument = [entity.strip() for entity in other_entities_in_sentence if entity in
+                                        argument]
+                tagged_row_info[relation_name] = {"argument_string": argument,
+                                                  'argument_lemmas': [token.lemma_ for token in
+                                                                      SPACY_NLP(argument)],
+                                                  "numbers": numbers_in_argument,
+                                                  "dates": dates_in_argument,
+                                                  "entities": entities_in_argument}
         tagged_info.append(tagged_row_info)
     return tagged_info
 
@@ -116,7 +130,7 @@ def make_files_for_semparse(data_file: str,
         tagged_file = f"{tables_path}/{paragraph_id}.tagged"
         LOGGER.info(f"Writing {tagged_file}..")
         with open(tagged_file, "w") as output_file:
-            tagged_header_fields = ["row", "col", "id", "content", "tokens", "lemmaToken",
+            tagged_header_fields = ["row", "col", "id", "content", "tokens", "lemmaTokens",
                                     "posTags", "nerTags", "nerValues", "number", "date", "num2",
                                     "list", "listId"]
             print("\t".join(tagged_header_fields), file=output_file)
@@ -132,16 +146,18 @@ def make_files_for_semparse(data_file: str,
                     if column_name in row_info:
                         if column_name == 'sentence_id':
                             continue
-                        if column_name == 'verb':
-                            content = row_info[column_name]
+                        elif column_name == 'verb':
+                            content = row_info[column_name]["string"]
+                            lemma = "|".join(row_info[column_name]["lemmas"])
                             numbers, dates, entities = [], [], []
                         else:
                             content = row_info[column_name]['argument_string']
                             numbers = row_info[column_name]['numbers']
                             dates = row_info[column_name]['dates']
                             entities = row_info[column_name]['entities']
+                            lemma = "|".join(row_info[column_name]["argument_lemmas"])
                     else:
-                        content, numbers, dates, entities = "NULL", [], [], []
+                        content, lemma, numbers, dates, entities = "NULL", "NULL", [], [], []
                     normalized_name = content.lower().replace(" ", "_")
                     ner_values = "|".join(entities)  # Note that we only include NEs that are not numbers or dates.
                     number_values = "|".join(numbers)
@@ -151,6 +167,7 @@ def make_files_for_semparse(data_file: str,
                     fields[1] = str(column_id)
                     fields[2] = normalized_name
                     fields[3] = content
+                    fields[5] = lemma
                     fields[8] = ner_values
                     fields[9] = number_values
                     fields[10] = date_values

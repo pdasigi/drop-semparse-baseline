@@ -147,10 +147,7 @@ class Date:
         quarter = -1
         for part in string_parts:
             try:
-                if part in NUMBER_WORDS:
-                    part_digit = NUMBER_WORDS[part]
-                else:
-                    part_digit = int(part)
+                part_digit = NUMBER_WORDS.get(part, int(part))
                 if "quarter" in string:
                     quarter = part_digit
                 elif part.isdigit() and len(part) == 4:
@@ -166,10 +163,12 @@ class Date:
 class Argument:
     def __init__(self,
                  argument_string: str = None,
+                 argument_lemmas: List[str] = None,
                  numbers: List[int] = None,
                  dates: List[Date] = None,
                  entities: List[str] = None) -> None:
-        self. argument_string = argument_string
+        self.argument_string = argument_string
+        self.argument_lemmas = argument_lemmas
         self.numbers = numbers or []
         self.dates = dates or []
         self.entities = entities or []
@@ -180,6 +179,9 @@ class Argument:
         return self.argument_string == other.argument_string and self.numbers == other.numbers \
                 and self.dates == other.dates and self.entities == other.entities
 
+    def __str__(self):
+        return f"Argument({self.argument_string})"
+
 
 class ParagraphQuestionContext:
     def __init__(self,
@@ -188,9 +190,11 @@ class ParagraphQuestionContext:
         self.paragraph_data = paragraph_data
         self.question_tokens = question_tokens
         self._paragraph_strings = []
+        self._paragraph_lemmas = []
         for structure in paragraph_data:
             for argument in structure.values():
                 self._paragraph_strings.append(argument.argument_string)
+                self._paragraph_lemmas.append("_".join(argument.argument_lemmas))
         self._table_knowledge_graph: KnowledgeGraph = None
 
     def __eq__(self, other):
@@ -227,6 +231,8 @@ class ParagraphQuestionContext:
                 paragraph_data.append({})
             node_info = dict(zip(header, current_line))
             cell_value = cls.normalize_string(node_info['content'])
+            cell_lemmas = [cls.normalize_string(lemma) for lemma in
+                           node_info["lemmaTokens"].split("|")]
             column_name = column_index_to_name[column_index]
             number_values = None
             date_values = None
@@ -249,6 +255,7 @@ class ParagraphQuestionContext:
             if node_info['nerValues']:
                 ner_values = node_info['nerValues'].split('|')
             paragraph_data[-1][column_name] = Argument(argument_string=cell_value,
+                                                       argument_lemmas=cell_lemmas,
                                                        numbers=number_values,
                                                        dates=date_values,
                                                        entities=ner_values)
@@ -266,13 +273,16 @@ class ParagraphQuestionContext:
         entity_data = []
         for i, token in enumerate(self.question_tokens):
             token_text = token.text
+            token_lemma = token.lemma_
             if token_text in STOP_WORDS:
                 continue
             normalized_token_text = self.normalize_string(token_text)
+            normalized_token_lemma = self.normalize_string(token_lemma)
             if not normalized_token_text:
                 continue
-            if self._string_in_paragraph(normalized_token_text):
+            if self._string_in_paragraph(normalized_token_text, normalized_token_lemma):
                 entity_data.append({'value': normalized_token_text,
+                                    'lemma': normalized_token_lemma,
                                     'token_start': i,
                                     'token_end': i+1})
 
@@ -280,7 +290,9 @@ class ParagraphQuestionContext:
         # filter out number entities to avoid repetition
         expanded_entities = []
         for entity in self._expand_entities(self.question_tokens, entity_data):
-            expanded_entities.append(f"string:{entity['value']}")
+            # Returning lemmas, instead of strings as entities to let filtering functions match
+            # lemmas.
+            expanded_entities.append(f"string:{entity['lemma']}")
         return expanded_entities, extracted_numbers
 
     @staticmethod
@@ -344,13 +356,20 @@ class ParagraphQuestionContext:
                     numbers.append((str(int(number + 10 ** num_zeros)), i))
         return numbers
 
-    def _string_in_paragraph(self, candidate: str) -> bool:
+    def _string_in_paragraph(self,
+                             candidate: str,
+                             candidate_lemma: str = None) -> bool:
         """
-        Checks if the string occurs in the paragraph.
+        Checks if the string occurs in the paragraph. Optionally also checks for a lemma match if
+        the candidate's lemma is given.
         """
         for string in self._paragraph_strings:
             if candidate in string:
                 return True
+        if candidate_lemma is not None:
+            for lemma in self._paragraph_lemmas:
+                if candidate_lemma in lemma:
+                    return True
         return False
 
     def _expand_entities(self, question, entity_data):
@@ -362,23 +381,29 @@ class ParagraphQuestionContext:
             current_start = entity['token_start']
             current_end = entity['token_end']
             current_token = entity['value']
+            current_lemma = entity['lemma']
 
             while current_end < len(question):
                 next_token = question[current_end].text
+                next_lemma = question[current_end].lemma_
                 next_token_normalized = self.normalize_string(next_token)
+                next_lemma_normalized = self.normalize_string(next_lemma)
                 if next_token_normalized == "":
                     current_end += 1
                     continue
-                candidate = "%s_%s" %(current_token, next_token_normalized)
-                if self._string_in_paragraph(candidate):
+                candidate = f"{current_token}_{next_token_normalized}"
+                candidate_lemma = f"{current_lemma}_{next_lemma_normalized}"
+                if self._string_in_paragraph(candidate, candidate_lemma):
                     current_end += 1
                     current_token = candidate
+                    current_lemma = candidate_lemma
                 else:
                     break
 
             new_entities.append({'token_start' : current_start,
                                  'token_end' : current_end,
-                                 'value' : current_token})
+                                 'value' : current_token,
+                                 'lemma': current_lemma})
         return new_entities
 
     @staticmethod

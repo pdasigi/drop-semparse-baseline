@@ -1,0 +1,155 @@
+row	col	id	content	tokens	lemmaTokens	posTags	nerTags	nerValues	number	date	num2	list	listId
+-1	0	relation:sentence_id	sentence_id										
+-1	1	relation:verb	verb										
+-1	2	relation:arg0	ARG0										
+-1	3	relation:arg1	ARG1										
+-1	4	relation:argm_loc	ARGM-LOC										
+-1	5	relation:argm_tmp	ARGM-TMP										
+-1	6	relation:arg2	ARG2										
+-1	7	relation:argm_neg	ARGM-NEG										
+-1	8	relation:argm_prp	ARGM-PRP										
+-1	9	relation:argm_mnr	ARGM-MNR										
+0	1	started	started		start								
+0	2	the_redskins	The Redskins		the|redskins								
+0	3	their_first_preseason	their first preseason		-PRON-|first|preseason			first					
+0	4	on_the_road	on the road		on|the|road								
+0	5	on_august_11	on August 11		on|august|11					August 11			
+0	6	null	NULL		NULL								
+0	7	null	NULL		NULL								
+0	8	null	NULL		NULL								
+0	9	null	NULL		NULL								
+1	1	allowed	allowed		allow								
+1	2	the_redskins_defense	The Redskins defense		the|redskins|defense			The Redskins					
+1	3	only_six_points	only six points		only|six|point				only six				
+1	4	null	NULL		NULL								
+1	5	null	NULL		NULL								
+1	6	null	NULL		NULL								
+1	7	null	NULL		NULL								
+1	8	null	NULL		NULL								
+1	9	null	NULL		NULL								
+2	1	caused	caused		cause								
+2	2	the_redskins_defense	The Redskins defense		the|redskins|defense			The Redskins					
+2	3	four_fumbles_,_one_of_which_they_recovered	four fumbles , one of which they recovered		four|fumble|,|one|of|which|-PRON-|recover				four|one				
+2	4	null	NULL		NULL								
+2	5	null	NULL		NULL								
+2	6	null	NULL		NULL								
+2	7	null	NULL		NULL								
+2	8	null	NULL		NULL								
+2	9	null	NULL		NULL								
+3	1	recovered	recovered		recover								
+3	2	they	they		-PRON-								
+3	3	one_of_which	one of which		one|of|which				one				
+3	4	null	NULL		NULL								
+3	5	null	NULL		NULL								
+3	6	null	NULL		NULL								
+3	7	null	NULL		NULL								
+3	8	null	NULL		NULL								
+3	9	null	NULL		NULL								
+4	1	were	were		be								
+4	2	null	NULL		NULL								
+4	3	many	Many		many								
+4	4	null	NULL		NULL								
+4	5	null	NULL		NULL								
+4	6	surprised_to_see_the_redskins_'_quarterback_jason_campbell_play_the_whole_1st_half	surprised to see the Redskins ' Quarterback Jason Campbell play the whole 1st half		surprised|to|see|the|redskins|'|quarterback|jason|campbell|play|the|whole|1st|half					1st half			
+4	7	null	NULL		NULL								
+4	8	null	NULL		NULL								
+4	9	null	NULL		NULL								
+5	1	see	see		see								
+5	2	many	Many		many								
+5	3	the_redskins_'_quarterback_jason_campbell_play_the_whole_1st_half	the Redskins ' Quarterback Jason Campbell play the whole 1st half		the|redskins|'|quarterback|jason|campbell|play|the|whole|1st|half					1st half			
+5	4	null	NULL		NULL								
+5	5	null	NULL		NULL								
+5	6	null	NULL		NULL								
+5	7	null	NULL		NULL								
+5	8	null	NULL		NULL								
+5	9	null	NULL		NULL								
+6	1	play	play		play								
+6	2	the_redskins_'_quarterback_jason_campbell	the Redskins ' Quarterback Jason Campbell		the|redskins|'|quarterback|jason|campbell								
+6	3	null	NULL		NULL								
+6	4	null	NULL		NULL								
+6	5	the_whole_1st_half	the whole 1st half		the|whole|1st|half					1st half			
+6	6	null	NULL		NULL								
+6	7	null	NULL		NULL								
+6	8	null	NULL		NULL								
+6	9	null	NULL		NULL								
+7	1	was	was		be								
+7	2	null	NULL		NULL								
+7	3	campbell	Campbell		campbell								
+7	4	null	NULL		NULL								
+7	5	null	NULL		NULL								
+7	6	productive	productive		productive								
+7	7	n't	n't		n't								
+7	8	null	NULL		NULL								
+7	9	null	NULL		NULL								
+8	1	fumbled	fumbled		fumble								
+8	2	campbell	Campbell		campbell								
+8	3	null	NULL		NULL								
+8	4	null	NULL		NULL								
+8	5	twice	twice		twice								
+8	6	null	NULL		NULL								
+8	7	n't	n't		n't								
+8	8	null	NULL		NULL								
+8	9	null	NULL		NULL								
+9	1	did	did		do								
+9	2	null	NULL		NULL								
+9	3	null	NULL		NULL								
+9	4	null	NULL		NULL								
+9	5	null	NULL		NULL								
+9	6	null	NULL		NULL								
+9	7	null	NULL		NULL								
+9	8	null	NULL		NULL								
+9	9	null	NULL		NULL								
+10	1	score	score		score								
+10	2	campbell	Campbell		campbell								
+10	3	any_touchdowns	any touchdowns		any|touchdown								
+10	4	null	NULL		NULL								
+10	5	null	NULL		NULL								
+10	6	null	NULL		NULL								
+10	7	n't	n't		n't								
+10	8	null	NULL		NULL								
+10	9	null	NULL		NULL								
+11	1	scored	scored		score								
+11	2	the_redskins	The Redskins		the|redskins								
+11	3	two_late_touchdowns	two late touchdowns		two|late|touchdown				two				
+11	4	null	NULL		NULL								
+11	5	in_the_last_1:17	in the last 1:17		in|the|last|1:17								
+11	6	null	NULL		NULL								
+11	7	null	NULL		NULL								
+11	8	to_win_the_game	to win the game		to|win|the|game								
+11	9	null	NULL		NULL								
+12	1	win	win		win								
+12	2	the_redskins	The Redskins		the|redskins								
+12	3	the_game	the game		the|game								
+12	4	null	NULL		NULL								
+12	5	null	NULL		NULL								
+12	6	null	NULL		NULL								
+12	7	null	NULL		NULL								
+12	8	null	NULL		NULL								
+12	9	null	NULL		NULL								
+13	1	scored	scored		score								
+13	2	marcus_mason	Marcus Mason		marcus|mason								
+13	3	a_1-yard_rushing_touchdown	a 1-yard rushing touchdown		a|1-yard|rush|touchdown				1-yard				
+13	4	null	NULL		NULL								
+13	5	null	NULL		NULL								
+13	6	null	NULL		NULL								
+13	7	null	NULL		NULL								
+13	8	null	NULL		NULL								
+13	9	null	NULL		NULL								
+14	1	rushing	rushing		rush								
+14	2	touchdown	touchdown		touchdown								
+14	3	null	NULL		NULL								
+14	4	null	NULL		NULL								
+14	5	null	NULL		NULL								
+14	6	null	NULL		NULL								
+14	7	null	NULL		NULL								
+14	8	null	NULL		NULL								
+14	9	1-yard	1-yard		1-yard								
+15	1	recovered	recovered		recover								
+15	2	byron_westbrook	Byron Westbrook		byron|westbrook								
+15	3	a_fumble	a fumble		a|fumble								
+15	4	in_the_endzone	in the endzone		in|the|endzone								
+15	5	null	NULL		NULL								
+15	6	null	NULL		NULL								
+15	7	null	NULL		NULL								
+15	8	null	NULL		NULL								
+15	9	null	NULL		NULL								

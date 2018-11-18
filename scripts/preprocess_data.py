@@ -1,6 +1,7 @@
 import json
 import re
 import os
+import sys
 import argparse
 import logging
 from typing import Callable, Dict, List, Tuple
@@ -10,6 +11,10 @@ from spacy.tokens import Span, Doc
 from allennlp.common.util import JsonDict
 from allennlp.pretrained import (srl_with_elmo_luheng_2018,
                                  open_information_extraction_stanovsky_2018)
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(os.path.join(__file__, os.pardir))))
+
+from semparse.context.paragraph_question_context import MONTH_NUMBERS  # pylint: disable=wrong-import-position
 
 LOGGER = logging.getLogger(__name__)
 
@@ -175,12 +180,25 @@ def make_files_for_semparse(data_file: str,
 
         for qa_pair in paragraph_data["qa_pairs"]:
             question = qa_pair["question"].lower()
+            answers = []
             if qa_pair['answer']['date']:
-                answers = [qa_pair['answer']['date']['year']]
-            elif qa_pair['answer']['number']:
-                answers = [qa_pair['answer']['number']]
-            else:
-                answers = qa_pair['answer']['span']
+                year, month, day = "xxxx", "xx", "xx"
+                date = qa_pair["answer"]["date"]
+                if "year" in date and date["year"]:
+                    year = date["year"]
+                if "month" in date:
+                    month = MONTH_NUMBERS.get(date["month"].lower(), "xx")
+                if "day" in date and date["day"]:
+                    day = date["day"]
+                date_string = f"{year}-{month}-{day}"
+                if date_string != "xxxx-xx-xx":
+                    answers.append(date_string)
+
+            if qa_pair['answer']['number']:
+                answers.append(qa_pair['answer']['number'])
+
+            if qa_pair['answer']['spans']:
+                answers.extend(qa_pair['answer']['spans'])
             question_lisp = f'(utterance "{question}")'
             answer_descriptions = " ".join([f'(description "{answer}")' for answer in answers])
             answer_lisp = f'(targetValue (list {answer_descriptions}))'

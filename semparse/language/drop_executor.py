@@ -27,8 +27,11 @@ class DropExecutor:
         The class expects each structure to be represented as a dict from relation names to
         corresponding ``ArgumentData``.
     """
-    def __init__(self, paragraph_data: List[Dict[str, Argument]]) -> None:
+    def __init__(self,
+                 paragraph_data: List[Dict[str, Argument]],
+                 verbose: bool = False) -> None:
         self.paragraph_data = paragraph_data
+        self.verbose = verbose
 
     def __eq__(self, other):
         if not isinstance(other, DropExecutor):
@@ -58,10 +61,14 @@ class DropExecutor:
         normalized_target_list = [TableQuestionContext.normalize_string(value) for value in
                                   target_list]
         target_value_list = evaluator.to_value_list(normalized_target_list)
+        if not self.verbose:
+            executor_logger = logging.getLogger('semparse.language.drop_executor')
+            executor_logger.setLevel(logging.ERROR)
         try:
             denotation = self.execute(logical_form)
-        except ExecutionError:
-            logger.warning(f'Failed to execute: {logical_form}')
+        except Exception:  # pylint: disable=broad-except
+            if self.verbose:
+                logger.warning(f'Failed to execute: {logical_form}')
             return False
         if isinstance(denotation, list):
             denotation_list = [str(denotation_item) for denotation_item in denotation]
@@ -517,6 +524,8 @@ class DropExecutor:
             return []
         expression_evaluation = self._handle_expression(value_expression)
         if isinstance(expression_evaluation, list):
+            if not expression_evaluation:
+                return []
             filter_value = expression_evaluation[0]
         elif isinstance(expression_evaluation, str):
             filter_value = expression_evaluation
@@ -549,6 +558,8 @@ class DropExecutor:
             return []
         expression_evaluation = self._handle_expression(value_expression)
         if isinstance(expression_evaluation, list):
+            if not expression_evaluation:
+                return []
             filter_value = expression_evaluation[0]
         elif isinstance(expression_evaluation, str):
             filter_value = expression_evaluation

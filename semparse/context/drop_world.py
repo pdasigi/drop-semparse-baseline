@@ -48,7 +48,7 @@ class DropWorld(World):
                          global_name_mapping=types.COMMON_NAME_MAPPING)
         self.paragraph_context = paragraph_context
 
-        #self.table_graph = paragraph_context.get_table_knowledge_graph()
+        self.knowledge_graph = paragraph_context.get_knowledge_graph()
 
         self._executor = DropExecutor(self.paragraph_context.paragraph_data)
 
@@ -57,7 +57,7 @@ class DropWorld(World):
 
         # Adding entities and numbers seen in questions to the mapping.
         question_entities, question_numbers = paragraph_context.get_entities_from_question()
-        self._question_entities = question_entities
+        self._question_entities = [entity for entity, _ in question_entities]
         self._question_numbers = [number for number, _ in question_numbers]
         for entity in self._question_entities:
             # These entities all have prefix "string:"

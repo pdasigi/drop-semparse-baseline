@@ -1,6 +1,7 @@
 import re
 import csv
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Set, Tuple, Union, Optional
+from collections import defaultdict
 
 from unidecode import unidecode
 from allennlp.data.tokenizers import Token
@@ -189,21 +190,53 @@ class ParagraphQuestionContext:
                  question_tokens: List[Token]) -> None:
         self.paragraph_data = paragraph_data
         self.question_tokens = question_tokens
-        self._paragraph_strings = []
-        self._paragraph_lemmas = []
+        self._paragraph_strings: Dict[str, List[str]] = defaultdict(list)
+        self._paragraph_lemmas: Dict[str, List[str]] = defaultdict(list)
         for structure in paragraph_data:
-            for argument in structure.values():
-                self._paragraph_strings.append(argument.argument_string)
-                self._paragraph_lemmas.append("_".join(argument.argument_lemmas))
-        self._table_knowledge_graph: KnowledgeGraph = None
+            for relation, argument in structure.items():
+                self._paragraph_strings[argument.argument_string].append(relation)
+                self._paragraph_lemmas["_".join(argument.argument_lemmas)].append(relation)
+        self._knowledge_graph: KnowledgeGraph = None
 
     def __eq__(self, other):
         if not isinstance(other, ParagraphQuestionContext):
             return False
         return self.paragraph_data == other.paragraph_data
 
-    def get_table_knowledge_graph(self) -> KnowledgeGraph:
-        raise NotImplementedError
+    def get_knowledge_graph(self) -> KnowledgeGraph:
+        if self._knowledge_graph is None:
+            entities: Set[str] = set()
+            neighbors: Dict[str, List[str]] = defaultdict(list)
+            entity_text: Dict[str, str] = {}
+            # Add all column names to entities. We'll define their neighbors to be empty lists for
+            # now, and later add number and string entities as needed.
+            for relation_name in self.paragraph_data[0].keys():
+                # Add relation names to entities, with no neighbors yet.
+                entities.add(relation_name)
+                neighbors[relation_name] = []
+                entity_text[relation_name] = relation_name.split(":")[-1].replace("_", " ")
+
+            string_entities, numbers = self.get_entities_from_question()
+            for entity, relation_name in string_entities:
+                entities.add(entity)
+                neighbors[entity].append(relation_name)
+                neighbors[relation_name].append(entity)
+                entity_text[entity] = entity.replace("string:", "").replace("_", " ")
+            # We add all numbers without any neighbors
+            for number, _ in numbers:
+                entities.add(number)
+                entity_text[number] = number
+                neighbors[number] = []
+
+            for entity, entity_neighbors in neighbors.items():
+                neighbors[entity] = list(set(entity_neighbors))
+
+            # We need -1 as wild cards in dates.
+            entities.add("-1")
+            entity_text["-1"] = "-1"
+            neighbors["-1"] = []
+            self._knowledge_graph = KnowledgeGraph(entities, dict(neighbors), entity_text)
+        return self._knowledge_graph
 
     @classmethod
     def read_from_lines(cls,
@@ -280,11 +313,14 @@ class ParagraphQuestionContext:
             normalized_token_lemma = self.normalize_string(token_lemma)
             if not normalized_token_text:
                 continue
-            if self._string_in_paragraph(normalized_token_text, normalized_token_lemma):
+            token_in_relation = self._string_in_paragraph(normalized_token_text,
+                                                          normalized_token_lemma)
+            if token_in_relation is not None:
                 entity_data.append({'value': normalized_token_text,
                                     'lemma': normalized_token_lemma,
                                     'token_start': i,
-                                    'token_end': i+1})
+                                    'token_end': i+1,
+                                    'relation_name': token_in_relation})
 
         extracted_numbers = self._get_numbers_from_tokens(self.question_tokens)
         # filter out number entities to avoid repetition
@@ -292,7 +328,7 @@ class ParagraphQuestionContext:
         for entity in self._expand_entities(self.question_tokens, entity_data):
             # Returning lemmas, instead of strings as entities to let filtering functions match
             # lemmas.
-            expanded_entities.append(f"string:{entity['lemma']}")
+            expanded_entities.append((f"string:{entity['lemma']}", entity['relation_name']))
         return expanded_entities, extracted_numbers
 
     @staticmethod
@@ -358,19 +394,20 @@ class ParagraphQuestionContext:
 
     def _string_in_paragraph(self,
                              candidate: str,
-                             candidate_lemma: str = None) -> bool:
+                             candidate_lemma: str = None) -> Optional[str]:
         """
         Checks if the string occurs in the paragraph. Optionally also checks for a lemma match if
-        the candidate's lemma is given.
+        the candidate's lemma is given. If the string is present somewhere, returns the relation
+        name under which it is present.
         """
-        for string in self._paragraph_strings:
+        for string, relation_names in self._paragraph_strings.items():
             if candidate in string:
-                return True
+                return relation_names[0]
         if candidate_lemma is not None:
-            for lemma in self._paragraph_lemmas:
+            for lemma, relation_names in self._paragraph_lemmas.items():
                 if candidate_lemma in lemma:
-                    return True
-        return False
+                    return relation_names[0]
+        return None
 
     def _expand_entities(self, question, entity_data):
         new_entities = []
@@ -382,6 +419,7 @@ class ParagraphQuestionContext:
             current_end = entity['token_end']
             current_token = entity['value']
             current_lemma = entity['lemma']
+            entity_relation = entity['relation_name']
 
             while current_end < len(question):
                 next_token = question[current_end].text
@@ -393,17 +431,20 @@ class ParagraphQuestionContext:
                     continue
                 candidate = f"{current_token}_{next_token_normalized}"
                 candidate_lemma = f"{current_lemma}_{next_lemma_normalized}"
-                if self._string_in_paragraph(candidate, candidate_lemma):
+                candidate_in_relation = self._string_in_paragraph(candidate, candidate_lemma)
+                if candidate_in_relation is not None:
                     current_end += 1
                     current_token = candidate
                     current_lemma = candidate_lemma
+                    entity_relation = candidate_in_relation
                 else:
                     break
 
             new_entities.append({'token_start' : current_start,
                                  'token_end' : current_end,
                                  'value' : current_token,
-                                 'lemma': current_lemma})
+                                 'lemma': current_lemma,
+                                 'relation_name': entity_relation})
         return new_entities
 
     @staticmethod

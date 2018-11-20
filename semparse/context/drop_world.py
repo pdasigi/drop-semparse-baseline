@@ -149,7 +149,82 @@ class DropWorld(World):
         """
         Get the agenda that a logical form translating this question should satisfy.
         """
-        raise NotImplementedError
+        agenda_items = []
+        question_tokens = [token.text for token in self.paragraph_context.question_tokens]
+        question = " ".join(question_tokens)
+        if "at least" in question:
+            agenda_items.append("filter_number_greater_equals")
+        if "at most" in question:
+            agenda_items.append("filter_number_lesser_equals")
+
+        comparison_triggers = ["greater", "larger", "more"]
+        if any("no %s than" %word in question for word in comparison_triggers):
+            agenda_items.append("filter_number_lesser_equals")
+        elif any("%s than" %word in question for word in comparison_triggers):
+            agenda_items.append("filter_number_greater")
+        for token in question_tokens:
+            if token in ["next", "after", "below"]:
+                agenda_items.append("next")
+            if token in ["previous", "before", "above"]:
+                agenda_items.append("previous")
+            if token == "total":
+                agenda_items.append("sum")
+            if token == "difference":
+                agenda_items.append("diff")
+            if token == "average":
+                agenda_items.append("average")
+            if token in ["least", "smallest", "shortest", "lowest"] and "at least" not in question:
+                # This condition is too brittle. But for most logical forms with "min", there are
+                # semantically equivalent ones with "argmin". The exceptions are rare.
+                if "what is the least" in question:
+                    agenda_items.append("min_number")
+                else:
+                    agenda_items.append("argmin")
+            if token in ["most", "largest", "highest", "longest", "greatest"] and "at most" not in question:
+                # This condition is too brittle. But for most logical forms with "max", there are
+                # semantically equivalent ones with "argmax". The exceptions are rare.
+                if "what is the most" in question:
+                    agenda_items.append("max_number")
+                else:
+                    agenda_items.append("argmax")
+            if token == "latest":
+                agenda_items.append("max_date")
+            if token == "earliest":
+                agenda_items.append("min_date")
+            if token in ["first", "top"]:
+                agenda_items.append("first")
+            if token in ["last", "bottom"]:
+                agenda_items.append("last")
+
+        if "how many" in question:
+            if "sum" not in agenda_items and "average" not in agenda_items:
+                # The question probably just requires counting the rows. But this is not very
+                # accurate. The question could also be asking for a value that is in the table.
+                agenda_items.append("count_structures")
+        agenda = []
+        # Adding productions from the global set.
+        for agenda_item in set(agenda_items):
+            # Some agenda items may not be present in the terminal productions because some of these
+            # terminals are table-content specific. For example, if the question triggered "sum",
+            # and the table does not have number columns, we should not add "<r,<f,n>> -> sum" to
+            # the agenda.
+            if agenda_item in self.terminal_productions:
+                agenda.append(self.terminal_productions[agenda_item])
+
+        question_with_underscores = "_".join(question_tokens)
+        normalized_question = re.sub("[^a-z0-9_]", "", question_with_underscores)
+        # Adding all productions that lead to entities and numbers extracted from the question.
+        for entity in self._question_entities:
+            agenda.append(f"{types.STRING_TYPE} -> {entity}")
+
+        for number in self._question_numbers:
+            # The reason we check for the presence of the number in the question again is because
+            # some of these numbers are extracted from number words like month names and ordinals
+            # like "first". On looking at some agenda outputs, I found that they hurt more than help
+            # in the agenda.
+            if f"_{number}_" in normalized_question:
+                agenda.append(f"{types.NUMBER_TYPE} -> {number}")
+        return agenda
 
     def execute(self, logical_form: str) -> Union[List[str], int]:
         """Execute the logical form"""

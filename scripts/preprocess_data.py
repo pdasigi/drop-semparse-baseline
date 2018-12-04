@@ -2,15 +2,21 @@ import json
 import re
 import os
 import sys
+import pdb
 import argparse
 import logging
+import networkx as nx
+from copy import copy
+from networkx.algorithms.traversal.depth_first_search import dfs_tree
 from typing import Callable, Dict, List, Tuple
 
 import spacy
 from spacy.tokens import Span, Doc
 from allennlp.common.util import JsonDict
 from allennlp.pretrained import (srl_with_elmo_luheng_2018,
-                                 open_information_extraction_stanovsky_2018)
+                                 open_information_extraction_stanovsky_2018,
+                                 biaffine_parser_stanford_dependencies_todzat_2017)
+
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(os.path.join(__file__, os.pardir))))
 
@@ -19,6 +25,56 @@ from semparse.context.paragraph_question_context import MONTH_NUMBERS  # pylint:
 LOGGER = logging.getLogger(__name__)
 
 SPACY_NLP = spacy.load('en')
+
+def format_single_verb(nx_graph, words, verb_ind):
+    """
+    Get a single verb description.
+    """
+    ret = words
+    ret[verb_ind] = f"[V: {ret[verb_ind]}]"
+    for dep in nx_graph[verb_ind]:
+        label = nx_graph[verb_ind][dep]["label"]
+        subtree = dfs_tree(nx_graph, dep)
+        start_word_ind = min(subtree)
+        start_word = ret[start_word_ind]
+        end_word_ind = max(subtree)
+        end_word = ret[end_word_ind]
+        ret[start_word_ind] = f"[{label}: {start_word}"
+        ret[end_word_ind] = f"{ret[end_word_ind]}]"
+    return ret
+
+def get_verb_info_from_graph(nx_graph):
+    """
+    Convert an nx_graph to AllenNLP "description".
+    {'verb': 'Hoping', 'description': '[V: Hoping] [ARG1: to get their first win of the season] , the 49ers went home for a Week 5 Sunday night duel with the Philadelphia Eagles .', 'tags': ['B-V', 'B-ARG1', 'I-ARG1', 'I-ARG1', 'I-ARG1', 'I-ARG1', 'I-ARG1', 'I-ARG1', 'I-ARG1', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O']}
+    """
+    items = sorted(nx_graph.nodes.items())
+    verbs = [(ind, attrs["word"], attrs["pos"])
+             for ind, attrs in items
+             if attrs["pos"].startswith("V")]
+    words = [attrs["word"]
+             for _, attrs in items]
+    verb_info = []
+
+    for verb_ind, verb, pos in verbs:
+        desc = format_single_verb(nx_graph, copy(words), verb_ind)
+        verb_info.append({"verb": verb,
+                          "description": " ".join(desc[1:])})
+    return {"verbs": verb_info,
+            "words": words}
+
+def get_nx_graph_from_dep(dep_tree):
+    """
+    Convert an AllenNLP dep tree representation to networkx
+    representation.
+    """
+    nx_graph = nx.DiGraph()
+    nx_graph.add_node(0, word = "ROOT", pos = "ROOT")
+    for dep_ind, (word, pos, head_ind, label) in enumerate(zip(dep_tree["words"], dep_tree["pos"], dep_tree["predicted_heads"], dep_tree["predicted_dependencies"])):
+        nx_graph.add_node(dep_ind + 1, word = word, pos = pos)
+        nx_graph.add_edge(head_ind, dep_ind + 1, label = label)
+
+    return nx_graph
 
 
 def get_table_info(processed_passage: Doc,
@@ -209,6 +265,9 @@ def make_files_for_semparse(data_file: str,
     examples_file.close()
     LOGGER.log(f"Wrote {question_counter} questions.")
 
+
+
+
 def main(args):
     if args.tagger == "srl":
         model = srl_with_elmo_luheng_2018()
@@ -216,6 +275,9 @@ def main(args):
     elif args.tagger == "oie":
         model = open_information_extraction_stanovsky_2018()
         tagger_function = lambda sentence: model.predict_json({"sentence": sentence})
+    elif args.tagger == "dep":
+        model = biaffine_parser_stanford_dependencies_todzat_2017()
+        tagger_function = lambda sentence: get_verb_info_from_graph(get_nx_graph_from_dep(model.predict(sentence)))
     else:
         raise RuntimeError(f"Unknown tagger type: {args.tagger}")
     if args.verbose:

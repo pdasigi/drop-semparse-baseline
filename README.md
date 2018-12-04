@@ -18,7 +18,7 @@ Where `tagger` indicates the underlying representation to use (one of `srl`, `de
 Alternatively, run preprocessing for all representations on the current train file, by running:
 
 ```
-bash scripts/preprocess_train.sh
+bash scripts/preprocess_data.sh path/to/train/file path/to/output/folder
 ```
 
 2. Training

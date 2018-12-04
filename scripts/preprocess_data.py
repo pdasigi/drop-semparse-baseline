@@ -2,7 +2,6 @@ import json
 import re
 import os
 import sys
-import pdb
 import argparse
 import logging
 import networkx as nx

@@ -2,6 +2,7 @@ import json
 import re
 import os
 import sys
+
 import argparse
 import logging
 import networkx as nx
@@ -29,18 +30,27 @@ def format_single_verb(nx_graph, words, verb_ind):
     """
     Get a single verb description.
     """
-    ret = words
-    ret[verb_ind] = f"[V: {ret[verb_ind]}]"
+    desc = words
+    bio_tags = ["O" for _ in words]
+    desc[verb_ind] = f"[V: {desc[verb_ind]}]"
+    bio_tags[verb_ind] = "B-V"
     for dep in nx_graph[verb_ind]:
         label = nx_graph[verb_ind][dep]["label"]
         subtree = dfs_tree(nx_graph, dep)
         start_word_ind = min(subtree)
-        start_word = ret[start_word_ind]
+        start_word = desc[start_word_ind]
         end_word_ind = max(subtree)
-        end_word = ret[end_word_ind]
-        ret[start_word_ind] = f"[{label}: {start_word}"
-        ret[end_word_ind] = f"{ret[end_word_ind]}]"
-    return ret
+        end_word = desc[end_word_ind]
+
+        # Update description
+        desc[start_word_ind] = f"[{label}: {start_word}"
+        desc[end_word_ind] = f"{desc[end_word_ind]}]"
+
+        # Update tags
+        bio_tags[start_word_ind] = f"B-{label}"
+        for cur_ind in range(start_word_ind + 1, end_word_ind + 1):
+            bio_tags[cur_ind] = f"I-{label}"
+    return desc, bio_tags
 
 def get_verb_info_from_graph(nx_graph):
     """
@@ -56,9 +66,11 @@ def get_verb_info_from_graph(nx_graph):
     verb_info = []
 
     for verb_ind, verb, pos in verbs:
-        desc = format_single_verb(nx_graph, copy(words), verb_ind)
+        desc, tags = format_single_verb(nx_graph, copy(words), verb_ind)
         verb_info.append({"verb": verb,
-                          "description": " ".join(desc[1:])})
+                          "description": " ".join(desc[1:]),
+                          "tags": tags[1:]})
+
     return {"verbs": verb_info,
             "words": words}
 
@@ -84,6 +96,7 @@ def get_table_info(processed_passage: Doc,
     for sentence_id, spacy_sentence in enumerate(processed_passage.sents):
         processed_sentences.append(spacy_sentence)
         pas_info = tagger(spacy_sentence.string.strip())
+
         for verb_info in pas_info['verbs']:
             verb = verb_info['verb']
             row_info = {'verb': verb}

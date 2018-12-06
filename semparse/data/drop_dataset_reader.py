@@ -43,7 +43,9 @@ class DropDatasetReader(DatasetReader):
                  table_token_indexers: Dict[str, TokenIndexer] = None,
                  use_table_for_vocab: bool = False,
                  max_table_tokens: int = None,
-                 output_agendas: bool = False) -> None:
+                 output_agendas: bool = False,
+                 embedding_file_for_entity_extraction: str = None,
+                 distance_threshold_for_entity_extraction: float = 0.3) -> None:
         super().__init__(lazy=lazy)
         self._tables_directory = tables_directory
         self._offline_logical_forms_directory = offline_logical_forms_directory
@@ -55,6 +57,8 @@ class DropDatasetReader(DatasetReader):
         self._use_table_for_vocab = use_table_for_vocab
         self._max_table_tokens = max_table_tokens
         self._output_agendas = output_agendas
+        self._entity_extraction_embedding_file = embedding_file_for_entity_extraction
+        self._entity_extraction_distance_threshold = distance_threshold_for_entity_extraction
 
     @overrides
     def _read(self, file_path: str):
@@ -127,7 +131,10 @@ class DropDatasetReader(DatasetReader):
         tokenized_question = self._tokenizer.tokenize(question.lower())
         question_field = TextField(tokenized_question, self._question_token_indexers)
         # TODO(pradeep): We'll need a better way to input processed lines.
-        paragraph_context = ParagraphQuestionContext.read_from_lines(table_lines, tokenized_question)
+        paragraph_context = ParagraphQuestionContext.read_from_lines(table_lines,
+                                                                     tokenized_question,
+                                                                     self._entity_extraction_embedding_file,
+                                                                     self._entity_extraction_distance_threshold)
         target_values_field = MetadataField(target_values)
         world = DropWorld(paragraph_context)
         world_field = MetadataField(world)

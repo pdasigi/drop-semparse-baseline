@@ -59,8 +59,13 @@ class DropWorld(World):
         question_entities, question_numbers = paragraph_context.get_entities_from_question()
         self._question_entities = [entity for entity, _ in question_entities]
         self._question_numbers = [number for number, _ in question_numbers]
+        self._paragraph_entities = [f"string:{entity}" for entity, _ in
+                                    paragraph_context.paragraph_tokens_to_keep]
         for entity in self._question_entities:
             # These entities all have prefix "string:"
+            self._map_name(entity, keep_mapping=True)
+
+        for entity in self._paragraph_entities:
             self._map_name(entity, keep_mapping=True)
 
         for number_in_question in self._question_numbers:
@@ -215,6 +220,8 @@ class DropWorld(World):
         normalized_question = re.sub("[^a-z0-9_]", "", question_with_underscores)
         # Adding all productions that lead to entities and numbers extracted from the question.
         for entity in self._question_entities:
+            agenda.append(f"{types.STRING_TYPE} -> {entity}")
+        for entity in self._paragraph_entities:
             agenda.append(f"{types.STRING_TYPE} -> {entity}")
 
         for number in self._question_numbers:

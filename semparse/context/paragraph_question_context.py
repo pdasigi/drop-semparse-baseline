@@ -1,7 +1,11 @@
 import re
 import csv
+import gzip
 from typing import Dict, List, Set, Tuple, Union, Optional
 from collections import defaultdict
+
+import numpy
+from scipy.spatial.distance import cosine as cosine_distance
 
 from unidecode import unidecode
 from allennlp.data.tokenizers import Token
@@ -187,7 +191,9 @@ class Argument:
 class ParagraphQuestionContext:
     def __init__(self,
                  paragraph_data: List[Dict[str, Argument]],
-                 question_tokens: List[Token]) -> None:
+                 question_tokens: List[Token],
+                 embedding_for_token_similarity: str,
+                 distance_threshold: float) -> None:
         self.paragraph_data = paragraph_data
         self.question_tokens = question_tokens
         self._paragraph_strings: Dict[str, List[str]] = defaultdict(list)
@@ -197,6 +203,46 @@ class ParagraphQuestionContext:
                 self._paragraph_strings[argument.argument_string].append(relation)
                 self._paragraph_lemmas["_".join(argument.argument_lemmas)].append(relation)
         self._knowledge_graph: KnowledgeGraph = None
+        self.paragraph_tokens_to_keep: List[Tuple[str, List[str]]] = []
+        if embedding_for_token_similarity is not None:
+            # We'll use this word embedding file to measure similarity between paragraph tokens and
+            # question tokens to decide if we should extract paragraph tokens as entities in the
+            # context.
+            # Mapping from tokens to relation names
+            paragraph_tokens: Dict[str, List[str]] = defaultdict(list)
+            for paragraph_string, relation_names in self._paragraph_strings.items():
+                # paragraph string is already tokenized but has underscores for spaces.
+                for token in paragraph_string.split("_"):
+                    if token in STOP_WORDS:
+                        continue
+                    paragraph_tokens[token].extend(relation_names)
+
+            question_tokens_to_keep: Set[str] = set()
+            for token in question_tokens:
+                if token.text not in STOP_WORDS:
+                    question_tokens_to_keep.add(token.text)
+            paragraph_token_embedding: Tuple[str, List[str], numpy.ndarray] = []
+            question_token_embedding: List[numpy.ndarray] = []
+            with gzip.open(embedding_for_token_similarity, "rt") as embedding_file:
+                for line in embedding_file:
+                    line_parts = line.split(' ')
+                    token = line_parts[0]
+                    if token in paragraph_tokens:
+                        relation_names = paragraph_tokens[token]
+                        paragraph_token_embedding.append((token,
+                                                          relation_names,
+                                                          numpy.asarray(line_parts[1:],
+                                                                        dtype='float32')))
+                    if token in question_tokens_to_keep:
+                        question_token_embedding.append(numpy.asarray(line_parts[1:], dtype='float32'))
+
+            for paragraph_token, relation_names, token_embedding in paragraph_token_embedding:
+                min_distance = min([cosine_distance(token_embedding, question_embedding) for
+                                    question_embedding in question_token_embedding])
+                if 0.0 < min_distance < distance_threshold:
+                    # If min_distance is 0.0, it means it is the exact word, and our exact string
+                    # match will get it anyway.
+                    self.paragraph_tokens_to_keep.append((paragraph_token, relation_names))
 
     def __eq__(self, other):
         if not isinstance(other, ParagraphQuestionContext):
@@ -222,6 +268,17 @@ class ParagraphQuestionContext:
                 neighbors[entity].append(relation_name)
                 neighbors[relation_name].append(entity)
                 entity_text[entity] = entity.replace("string:", "").replace("_", " ")
+
+            # If a word embedding is passed to the constructor, we might have entities extracted
+            # from the paragraph as well.
+            for paragragh_entity, relation_names in self.paragraph_tokens_to_keep:
+                entity_name = f"string:{paragragh_entity}"
+                entities.add(entity_name)
+                neighbors[entity_name].extend(relation_names)
+                for relation_name in relation_names:
+                    neighbors[relation_name].append(entity_name)
+                entity_text[entity_name] = paragragh_entity.lower()
+
             # We add all numbers without any neighbors
             for number, _ in numbers:
                 entities.add(number)
@@ -241,7 +298,9 @@ class ParagraphQuestionContext:
     @classmethod
     def read_from_lines(cls,
                         lines: List[List[str]],
-                        question_tokens: List[Token]) -> 'TableQuestionContext':
+                        question_tokens: List[Token],
+                        word_embedding_file: str,
+                        distance_threshold: float) -> 'TableQuestionContext':
         column_index_to_name = {}
 
         header = lines[0] # the first line is the header
@@ -293,14 +352,24 @@ class ParagraphQuestionContext:
                                                        dates=date_values,
                                                        entities=ner_values)
             last_row_index = row_index
-        return cls(paragraph_data, question_tokens)
+        return cls(paragraph_data,
+                   question_tokens,
+                   word_embedding_file,
+                   distance_threshold)
 
     @classmethod
-    def read_from_file(cls, filename: str, question_tokens: List[Token]) -> 'ParagraphQuestionContext':
+    def read_from_file(cls,
+                       filename: str,
+                       question_tokens: List[Token],
+                       word_embedding_file: str = None,
+                       distance_threshold: float = 0.3) -> 'ParagraphQuestionContext':
         with open(filename, 'r') as file_pointer:
             reader = csv.reader(file_pointer, delimiter='\t', quoting=csv.QUOTE_NONE)
             lines = [line for line in reader]
-            return cls.read_from_lines(lines, question_tokens)
+            return cls.read_from_lines(lines,
+                                       question_tokens,
+                                       word_embedding_file,
+                                       distance_threshold)
 
     def get_entities_from_question(self) -> Tuple[List[str], List[Tuple[str, int]]]:
         entity_data = []

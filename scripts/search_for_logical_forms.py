@@ -28,7 +28,9 @@ def search(domain: str,
            max_path_length: int,
            max_num_logical_forms: int,
            use_agenda: bool,
-           output_separate_files: bool) -> None:
+           output_separate_files: bool,
+           embedding_file: str,
+           distance_threshold: float) -> None:
     print(f"Starting search with {len(data)} instances", file=sys.stderr)
     if domain == "wikitables":
         executor_logger = \
@@ -53,10 +55,14 @@ def search(domain: str,
         tokenized_question = tokenizer.tokenize(utterance)
         table_file = f"{tables_directory}/{table_file}"
         if domain == "wikitables":
-            context = TableQuestionContext.read_from_file(table_file, tokenized_question)
+            context = TableQuestionContext.read_from_file(table_file,
+                                                          tokenized_question)
             world = WikiTablesVariableFreeWorld(context)
         else:
-            context = ParagraphQuestionContext.read_from_file(table_file, tokenized_question)
+            context = ParagraphQuestionContext.read_from_file(table_file,
+                                                              tokenized_question,
+                                                              embedding_file,
+                                                              distance_threshold)
             world = DropWorld(context)
         walker = ActionSpaceWalker(world, max_path_length=max_path_length)
         correct_logical_forms = []
@@ -108,12 +114,18 @@ if __name__ == "__main__":
                         train a parser.""")
     parser.add_argument("--num-splits", dest="num_splits", type=int, default=0,
                         help="Number of splits to make of the data, to run as many processes (default 0)")
+    parser.add_argument("--embedding-file", dest="embedding_file", type=str,
+                        help="""If provided, this file will be used to extract paragraph tokens that
+                        are similar to question tokens and add them to context.""")
+    parser.add_argument("--distance-threshold", dest="distance_threshold", type=float, default=0.3,
+                        help="Threshold to use to extract similar tokens for paragraph as entities")
     args = parser.parse_args()
     input_data = [wikitables_util.parse_example_line(example_line) for example_line in
                   open(args.data_file)]
     if args.num_splits == 0 or len(input_data) <= args.num_splits or not args.output_separate_files:
         search(args.domain, args.table_directory, input_data, args.output_path, args.max_path_length,
-               args.max_num_logical_forms, args.use_agenda, args.output_separate_files)
+               args.max_num_logical_forms, args.use_agenda, args.output_separate_files,
+               args.embedding_file, args.distance_threshold)
     else:
         chunk_size = math.ceil(len(input_data)/args.num_splits)
         start_index = 0
@@ -126,6 +138,7 @@ if __name__ == "__main__":
             process = Process(target=search, args=(args.domain, args.table_directory, data_split,
                                                    args.output_path, args.max_path_length,
                                                    args.max_num_logical_forms, args.use_agenda,
-                                                   args.output_separate_files))
+                                                   args.output_separate_files, args.embedding_file,
+                                                   args.distance_threshold))
             print(f"Starting process {i}", file=sys.stderr)
             process.start()

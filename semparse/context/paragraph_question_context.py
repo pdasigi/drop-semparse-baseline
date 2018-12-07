@@ -236,13 +236,14 @@ class ParagraphQuestionContext:
                     if token in question_tokens_to_keep:
                         question_token_embedding.append(numpy.asarray(line_parts[1:], dtype='float32'))
 
-            for paragraph_token, relation_names, token_embedding in paragraph_token_embedding:
-                min_distance = min([cosine_distance(token_embedding, question_embedding) for
-                                    question_embedding in question_token_embedding])
-                if 0.0 < min_distance < distance_threshold:
-                    # If min_distance is 0.0, it means it is the exact word, and our exact string
-                    # match will get it anyway.
-                    self.paragraph_tokens_to_keep.append((paragraph_token, relation_names))
+            if question_token_embedding:
+                for paragraph_token, relation_names, token_embedding in paragraph_token_embedding:
+                    min_distance = min([cosine_distance(token_embedding, question_embedding) for
+                                        question_embedding in question_token_embedding])
+                    if 0.0 < min_distance < distance_threshold:
+                        # If min_distance is 0.0, it means it is the exact word, and our exact string
+                        # match will get it anyway.
+                        self.paragraph_tokens_to_keep.append((paragraph_token, relation_names))
 
     def __eq__(self, other):
         if not isinstance(other, ParagraphQuestionContext):

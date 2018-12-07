@@ -9,6 +9,7 @@ import logging
 import math
 from multiprocessing import Process
 
+from tqdm import tqdm
 from allennlp.common.util import JsonDict
 from allennlp.semparse.contexts import TableQuestionContext
 from allennlp.semparse.worlds import WikiTablesVariableFreeWorld
@@ -43,7 +44,7 @@ def search(domain: str,
         os.makedirs(output_path)
     if not output_separate_files:
         output_file_pointer = open(output_path, "w")
-    for instance_data in data:
+    for instance_data in tqdm(data):
         utterance = instance_data["question"]
         question_id = instance_data["id"]
         print("Processing", question_id)

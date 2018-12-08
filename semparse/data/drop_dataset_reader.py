@@ -81,6 +81,21 @@ class DropDatasetReader(DatasetReader):
                 self._offline_logical_forms_directory = "/tmp/"
                 tarfile.open(tarball_with_all_lfs,
                              mode='r:gz').extractall(path=self._offline_logical_forms_directory)
+        tarball_with_all_tables: str = None
+        for filename in os.listdir(self._tables_directory):
+            if filename.endswith(".tar.gz"):
+                tarball_with_all_tables = os.path.join(self._tables_directory,
+                                                       filename)
+                break
+        if tarball_with_all_tables is not None:
+            logger.info(f"Found a tarball in the tables directory: {tarball_with_all_tables}")
+            logger.info("Assuming it contains tables for all questions and un-taring it.")
+            # If you're running this with beaker, the input directory will be read-only and we
+            # cannot untar the files in the directory itself. So we will do so in /tmp, but that
+            # means the new tables directory will be /tmp.
+            self._tables_directory = "/tmp/"
+            tarfile.open(tarball_with_all_tables,
+                         mode='r:gz').extractall(path=self._tables_directory)
         with open(file_path, "r") as data_file:
             num_missing_logical_forms = 0
             num_lines = 0

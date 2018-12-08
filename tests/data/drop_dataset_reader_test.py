@@ -77,3 +77,15 @@ class DropDatasetReaderTest(AllenNlpTestCase):
         reader = DropDatasetReader.from_params(Params(params))
         dataset = reader.read("fixtures/data/sample_data.examples")
         assert_dataset_correct(dataset)
+
+    def test_reader_reads_with_tables_in_tarball(self):
+        offline_search_directory = \
+                "fixtures/data/"
+        params = {
+                'lazy': False,
+                'tables_directory': "fixtures/data/tables_tarball_test_data/",
+                'offline_logical_forms_directory': offline_search_directory,
+                }
+        reader = DropDatasetReader.from_params(Params(params))
+        dataset = reader.read("fixtures/data/tables_tarball_test_data/sample_data.examples")
+        assert_dataset_correct(dataset)

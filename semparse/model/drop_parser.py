@@ -636,6 +636,7 @@ class DropSemanticParser(Model):
         outputs['debug_info'] = []
         outputs['entities'] = []
         outputs['logical_form']: List[List[str]] = []
+        outputs['denotations']: List[List[str]] = []
         for i in range(batch_size):
             # Decoding may not have terminated with any completed logical forms, if `num_steps`
             # isn't long enough (or if the model is not trained enough and gets into an
@@ -657,10 +658,20 @@ class DropSemanticParser(Model):
                             self._has_logical_form(1.0)
                         else:
                             self._has_logical_form(0.0)
-                        if target_list:
+                        if target_list is not None and target_list[0] is not None:
                             denotation_correct = world[i].evaluate_logical_form(logical_form, target_list[i])
                             self._denotation_accuracy(1.0 if denotation_correct else 0.0)
                         outputs['best_action_sequence'].append(action_strings)
+                        # Storing only the best denotation.
+                        try:
+                            denotation = world[i].execute(logical_form)
+                            if isinstance(denotation, list):
+                                denotation_list = [str(item).replace("_", " ") for item in denotation]
+                            else:
+                                denotation_list = [str(denotation).replace("_", " ")]
+                        except Exception:  # pylint: disable=broad-except
+                            denotation_list = []
+                        outputs["denotations"].append(denotation_list)
                     outputs['logical_form'][-1].append(logical_form)
                 outputs['debug_info'].append(best_final_states[i][0].debug_info[0])  # type: ignore
                 outputs['entities'].append(world[i].knowledge_graph.entities)

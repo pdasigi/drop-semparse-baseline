@@ -343,11 +343,12 @@ def make_files_for_semparse(data_file: str,
 
             if qa_pair['answer']['spans']:
                 answers.extend(qa_pair['answer']['spans'])
+            question_id = qa_pair['query_id']
             question_lisp = f'(utterance "{question}")'
             answer_descriptions = " ".join([f'(description "{answer}")' for answer in answers])
             answer_lisp = f'(targetValue (list {answer_descriptions}))'
             context_lisp = f"(context (graph tables.TableKnowledgeGraph tables/{paragraph_id}.tagged))"
-            example_lisp = f"(example (id q-{question_counter}) {question_lisp} {context_lisp} {answer_lisp})"
+            example_lisp = f"(example (id {question_id}) {question_lisp} {context_lisp} {answer_lisp})"
             question_counter += 1
             print(example_lisp, file=examples_file)
     examples_file.close()

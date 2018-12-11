@@ -44,4 +44,5 @@ class DropParserPredictor(Predictor):
     def dump_line(self, outputs: JsonDict) -> str:  # pylint: disable=no-self-use
         question_id = outputs["question_id"]
         denotation = "\t".join(outputs["denotations"])
-        return f"{question_id}\t{denotation}\n"
+        logical_form = outputs["logical_form"][0]
+        return f"{question_id}\t{logical_form}\t{denotation}\n"

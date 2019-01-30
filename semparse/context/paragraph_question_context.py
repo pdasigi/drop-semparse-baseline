@@ -1,7 +1,6 @@
 import re
 import csv
-import gzip
-from typing import Dict, List, Set, Tuple, Union, Optional
+from typing import Dict, List, Set, Tuple, Union, Any, Optional
 from collections import defaultdict
 
 import numpy
@@ -10,6 +9,9 @@ from scipy.spatial.distance import cosine as cosine_distance
 from unidecode import unidecode
 from allennlp.data.tokenizers import Token
 from allennlp.semparse.contexts.knowledge_graph import KnowledgeGraph
+
+from semparse.context import util as context_util
+
 
 # == stop words that will be omitted by ContextGenerator
 STOP_WORDS = {"", "", "all", "being", "-", "over", "through", "yourselves", "its", "before",
@@ -169,7 +171,7 @@ class Argument:
     def __init__(self,
                  argument_string: str = None,
                  argument_lemmas: List[str] = None,
-                 numbers: List[int] = None,
+                 numbers: List[float] = None,
                  dates: List[Date] = None,
                  entities: List[str] = None) -> None:
         self.argument_string = argument_string
@@ -192,7 +194,7 @@ class ParagraphQuestionContext:
     def __init__(self,
                  paragraph_data: List[Dict[str, Argument]],
                  question_tokens: List[Token],
-                 embedding_for_token_similarity: str,
+                 embedding_for_token_similarity: Dict[str, numpy.ndarray],
                  distance_threshold: float) -> None:
         self.paragraph_data = paragraph_data
         self.question_tokens = question_tokens
@@ -205,36 +207,27 @@ class ParagraphQuestionContext:
         self._knowledge_graph: KnowledgeGraph = None
         self.paragraph_tokens_to_keep: List[Tuple[str, List[str]]] = []
         if embedding_for_token_similarity is not None:
-            # We'll use this word embedding file to measure similarity between paragraph tokens and
+            # We'll use this word embedding to measure similarity between paragraph tokens and
             # question tokens to decide if we should extract paragraph tokens as entities in the
             # context.
-            # Mapping from tokens to relation names
-            paragraph_tokens: Dict[str, List[str]] = defaultdict(list)
+            # Tuples of paragraph strings, list of relation names, and embeddings of paragraph strings.
+            paragraph_token_embedding: List[Tuple[str, List[str], numpy.ndarray]] = []
             for paragraph_string, relation_names in self._paragraph_strings.items():
                 # paragraph string is already tokenized but has underscores for spaces.
                 for token in paragraph_string.split("_"):
                     if token in STOP_WORDS:
                         continue
-                    paragraph_tokens[token].extend(relation_names)
+                    if token not in embedding_for_token_similarity:
+                        continue
+                    token_embedding = embedding_for_token_similarity[token]
+                    paragraph_token_embedding.append((token, relation_names, token_embedding))
 
-            question_tokens_to_keep: Set[str] = set()
-            for token in question_tokens:
-                if token.text not in STOP_WORDS:
-                    question_tokens_to_keep.add(token.text)
-            paragraph_token_embedding: Tuple[str, List[str], numpy.ndarray] = []
+            # We keep the embeddings of tokens in the question that are not stop words.
             question_token_embedding: List[numpy.ndarray] = []
-            with gzip.open(embedding_for_token_similarity, "rt") as embedding_file:
-                for line in embedding_file:
-                    line_parts = line.split(' ')
-                    token = line_parts[0]
-                    if token in paragraph_tokens:
-                        relation_names = paragraph_tokens[token]
-                        paragraph_token_embedding.append((token,
-                                                          relation_names,
-                                                          numpy.asarray(line_parts[1:],
-                                                                        dtype='float32')))
-                    if token in question_tokens_to_keep:
-                        question_token_embedding.append(numpy.asarray(line_parts[1:], dtype='float32'))
+            for question_token in question_tokens:
+                token_text = question_token.text
+                if token_text not in STOP_WORDS and token_text in embedding_for_token_similarity:
+                    question_token_embedding.append(embedding_for_token_similarity[token_text])
 
             if question_token_embedding:
                 for paragraph_token, relation_names, token_embedding in paragraph_token_embedding:
@@ -301,7 +294,7 @@ class ParagraphQuestionContext:
                         lines: List[List[str]],
                         question_tokens: List[Token],
                         word_embedding_file: str,
-                        distance_threshold: float) -> 'TableQuestionContext':
+                        distance_threshold: float) -> 'ParagraphQuestionContext':
         column_index_to_name = {}
 
         header = lines[0] # the first line is the header
@@ -327,9 +320,9 @@ class ParagraphQuestionContext:
             cell_lemmas = [cls.normalize_string(lemma) for lemma in
                            node_info["lemmaTokens"].split("|")]
             column_name = column_index_to_name[column_index]
-            number_values = None
-            date_values = None
-            ner_values = None
+            number_values: List[float] = None
+            date_values: List[Date] = None
+            ner_values: List[str] = None
             if node_info['date']:
                 date_values = [Date.make_date(string.replace(" ", "_"))
                                for string in node_info['date'].split('|')]
@@ -337,7 +330,7 @@ class ParagraphQuestionContext:
                 number_values = []
                 for string in node_info['number'].split('|'):
                     if string in NUMBER_WORDS:
-                        number_values.append(NUMBER_WORDS[string])
+                        number_values.append(float(NUMBER_WORDS[string]))
                         continue
                     string = re.sub('[a-z,]', '', string.lower()).strip()
                     for string_part in string.split('-'):
@@ -353,9 +346,12 @@ class ParagraphQuestionContext:
                                                        dates=date_values,
                                                        entities=ner_values)
             last_row_index = row_index
+        embedding = None
+        if word_embedding_file:
+            embedding = context_util.read_pretrained_embedding(word_embedding_file)
         return cls(paragraph_data,
                    question_tokens,
-                   word_embedding_file,
+                   embedding,
                    distance_threshold)
 
     @classmethod
@@ -372,7 +368,7 @@ class ParagraphQuestionContext:
                                        word_embedding_file,
                                        distance_threshold)
 
-    def get_entities_from_question(self) -> Tuple[List[str], List[Tuple[str, int]]]:
+    def get_entities_from_question(self) -> Tuple[List[Tuple[str, Any]], List[Tuple[str, int]]]:
         entity_data = []
         for i, token in enumerate(self.question_tokens):
             token_text = token.text

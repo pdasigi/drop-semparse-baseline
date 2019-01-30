@@ -11,19 +11,17 @@ from multiprocessing import Process
 
 from tqdm import tqdm
 from allennlp.common.util import JsonDict
-from allennlp.semparse.contexts import TableQuestionContext
-from allennlp.semparse.worlds import WikiTablesVariableFreeWorld
 from allennlp.data.tokenizers import WordTokenizer
 from allennlp.data.dataset_readers.semantic_parsing.wikitables import util as wikitables_util
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(os.path.join(__file__, os.pardir))))
 
 from semparse.action_space_walker import ActionSpaceWalker
+from semparse.context import util as context_util
 from semparse.context.paragraph_question_context import ParagraphQuestionContext
 from semparse.context.drop_world import DropWorld
 
-def search(domain: str,
-           tables_directory: str,
+def search(tables_directory: str,
            data: JsonDict,
            output_path: str,
            max_path_length: int,
@@ -33,13 +31,13 @@ def search(domain: str,
            embedding_file: str,
            distance_threshold: float) -> None:
     print(f"Starting search with {len(data)} instances", file=sys.stderr)
-    if domain == "wikitables":
-        executor_logger = \
-                logging.getLogger('allennlp.semparse.executors.wikitables_variable_free_executor')
-    else:
-        executor_logger = logging.getLogger('weak_supervision.executors.drop_executor')
-        executor_logger.setLevel(logging.ERROR)
+    executor_logger = logging.getLogger('weak_supervision.executors.drop_executor')
+    executor_logger.setLevel(logging.ERROR)
     tokenizer = WordTokenizer()
+    embedding = None
+    if embedding_file:
+        print("Reading from pretrained embedding file.")
+        embedding = context_util.read_pretrained_embedding(embedding_file)
     if output_separate_files and not os.path.exists(output_path):
         os.makedirs(output_path)
     if not output_separate_files:
@@ -55,16 +53,11 @@ def search(domain: str,
         target_list = instance_data["target_values"]
         tokenized_question = tokenizer.tokenize(utterance)
         table_file = f"{tables_directory}/{table_file}"
-        if domain == "wikitables":
-            context = TableQuestionContext.read_from_file(table_file,
-                                                          tokenized_question)
-            world = WikiTablesVariableFreeWorld(context)
-        else:
-            context = ParagraphQuestionContext.read_from_file(table_file,
-                                                              tokenized_question,
-                                                              embedding_file,
-                                                              distance_threshold)
-            world = DropWorld(context)
+        context = ParagraphQuestionContext.read_from_file(table_file,
+                                                          tokenized_question,
+                                                          embedding,
+                                                          distance_threshold)
+        world = DropWorld(context)
         walker = ActionSpaceWalker(world, max_path_length=max_path_length)
         correct_logical_forms = []
         if use_agenda:
@@ -101,8 +94,6 @@ if __name__ == "__main__":
     parser.add_argument("data_file", type=str, help="Path to the *.examples file")
     parser.add_argument("output_path", type=str, help="""Path to the output directory if
                         'output_separate_files' is set, or to the output file if not.""")
-    parser.add_argument("--domain", type=str, help="""Is this for WikiTableQuestions or DROP?
-                        (default is WTQ)""", default="wikitables")
     parser.add_argument("--max-path-length", type=int, dest="max_path_length", default=10,
                         help="Max length to which we will search exhaustively")
     parser.add_argument("--max-num-logical-forms", type=int, dest="max_num_logical_forms",
@@ -124,7 +115,7 @@ if __name__ == "__main__":
     input_data = [wikitables_util.parse_example_line(example_line) for example_line in
                   open(args.data_file)]
     if args.num_splits == 0 or len(input_data) <= args.num_splits or not args.output_separate_files:
-        search(args.domain, args.table_directory, input_data, args.output_path, args.max_path_length,
+        search(args.table_directory, input_data, args.output_path, args.max_path_length,
                args.max_num_logical_forms, args.use_agenda, args.output_separate_files,
                args.embedding_file, args.distance_threshold)
     else:

@@ -114,5 +114,5 @@ generic_name_mapper.map_name_with_signature("diff", NUM_DIFF_TYPE)
 generic_name_mapper.map_name_with_signature("date", DATE_FUNCTION_TYPE)
 
 
-COMMON_NAME_MAPPING = generic_name_mapper.common_name_mapping
-COMMON_TYPE_SIGNATURE = generic_name_mapper.common_type_signature
+COMMON_NAME_MAPPING = generic_name_mapper.name_mapping
+COMMON_TYPE_SIGNATURE = generic_name_mapper.type_signatures

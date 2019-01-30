@@ -2,7 +2,8 @@
   "dataset_reader": {
     "type": "drop",
     "tables_directory": "fixtures/data/",
-    "offline_logical_forms_directory": "fixtures/data/"
+    "offline_logical_forms_directory": "fixtures/data/",
+    "embedding_file_for_entity_extraction": "fixtures/data/embedding_file.txt.gz"
   },
   "train_data_path": "fixtures/data/sample_data.examples",
   "validation_data_path": "fixtures/data/sample_data.examples",

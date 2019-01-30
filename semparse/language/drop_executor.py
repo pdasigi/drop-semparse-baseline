@@ -3,7 +3,7 @@ from collections import defaultdict
 import logging
 
 from allennlp.semparse import util as semparse_util
-from allennlp.semparse.worlds.world import ExecutionError
+from allennlp.semparse.domain_languages.domain_language import ExecutionError
 from allennlp.semparse.contexts import TableQuestionContext
 from allennlp.tools import wikitables_evaluator as evaluator
 
@@ -95,7 +95,7 @@ class DropExecutor:
         except AttributeError:
             raise ExecutionError(f"Function not found: {function_name}")
 
-    def _handle_constant(self, constant: str) -> Union[List[Dict[str, str]], str, float]:
+    def _handle_constant(self, constant: str) -> Union[List[Dict[str, Argument]], str, float]:
         if constant == "all_structures":
             return self.paragraph_data
         try:

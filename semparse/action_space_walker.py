@@ -59,7 +59,7 @@ class ActionSpaceWalker:
             for nonterminal_buffer, history in incomplete_paths:
                 # Taking the last non-terminal added to the buffer. We're going depth-first.
                 nonterminal = nonterminal_buffer.pop()
-                next_actions = []
+                next_actions: List[str] = []
                 if nonterminal in multi_match_substitutions:
                     for current_nonterminal in [nonterminal] + multi_match_substitutions[nonterminal]:
                         if current_nonterminal in actions:

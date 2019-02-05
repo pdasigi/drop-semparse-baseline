@@ -6,6 +6,7 @@ from allennlp.data.tokenizers import WordTokenizer
 from allennlp.data.tokenizers.word_splitter import SpacyWordSplitter
 
 from semparse.context import ParagraphQuestionContext
+from semparse.context import util as context_util
 
 
 # TODO(pradeep): Add more tests
@@ -15,7 +16,7 @@ class TestParagraphQuestionContext(AllenNlpTestCase):
         self.tokenizer = WordTokenizer(SpacyWordSplitter(pos_tags=True))
         question = "did the redskins score in the final two minutes of the game?"
         question_tokens = self.tokenizer.tokenize(question)
-        self.test_file = 'fixtures/data/sample_paragraph.tagged'
+        self.test_file = 'fixtures/data/tables/sample_paragraph.tagged'
         self.context = ParagraphQuestionContext.read_from_file(self.test_file, question_tokens)
 
     def _get_context_with_question(self, question):
@@ -57,10 +58,12 @@ class TestParagraphQuestionContext(AllenNlpTestCase):
         question = "what resulted in the redskins not scoring in the final two minutes of the game?"
         question_tokens = self.tokenizer.tokenize(question)
         embedding_file = "fixtures/data/glove_100d_sample.txt.gz"
+        embedding = context_util.read_pretrained_embedding(embedding_file)
         context = ParagraphQuestionContext.read_from_file(self.test_file,
                                                           question_tokens,
-                                                          embedding_file)
+                                                          embedding)
         entities = context.paragraph_tokens_to_keep
-        assert entities == [('first', ['relation:arg1']),
-                            ('four', ['relation:arg1']),
-                            ('six', ['relation:arg1'])]
+        expected_entities = [('first', ['relation:arg1']),
+                             ('four', ['relation:arg1']),
+                             ('six', ['relation:arg1'])]
+        assert all([entity in entities for entity in expected_entities])

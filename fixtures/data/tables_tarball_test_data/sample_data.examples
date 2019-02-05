@@ -1,1 +1,0 @@
-(example (id q-283) (utterance "did the redskins score in the final two minutes of the game?") (context (graph tables.TableKnowledgeGraph tables/sample_paragraph.tagged)) (targetValue (list (description "two late touchdowns"))))

@@ -1,6 +1,5 @@
 import json
 import os
-import sys
 
 import argparse
 import logging
@@ -19,9 +18,6 @@ from allennlp.pretrained import (srl_with_elmo_luheng_2018,
                                  biaffine_parser_stanford_dependencies_todzat_2017,
                                  neural_coreference_resolution_lee_2017)
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(os.path.join(__file__, os.pardir))))
-
-from semparse.context.paragraph_question_context import MONTH_NUMBERS  # pylint: disable=wrong-import-position
 
 LOGGER = logging.getLogger(__name__)
 
@@ -225,8 +221,6 @@ def make_files_for_semparse(data_file: str,
                             output_path: str,
                             tagger: Callable[[str], JsonDict],
                             coref_model: Optional[Model]):
-    data_file_suffix = data_file.split("/")[-1].replace(".json", "")
-    examples_file_path = f"{output_path}/{data_file_suffix}.examples"
     tables_path = f"{output_path}/tables"
     if not os.path.exists(output_path):
         os.mkdir(output_path)
@@ -236,9 +230,7 @@ def make_files_for_semparse(data_file: str,
 
     data = json.load(open(data_file))
     LOGGER.info(f"Read data from {data_file}")
-    LOGGER.info(f"Writing examples to {examples_file_path}..")
-    examples_file = open(examples_file_path, "w")
-    question_counter = 0
+    paragraph_counter = 0
     for paragraph_id, paragraph_data in data.items():
         passage = paragraph_data['passage']
         processed_doc = SPACY_NLP(passage)
@@ -321,38 +313,9 @@ def make_files_for_semparse(data_file: str,
                     fields[9] = number_values
                     fields[10] = date_values
                     print("\t".join(fields), file=output_file)
+        paragraph_counter += 1
 
-        for qa_pair in paragraph_data["qa_pairs"]:
-            question = qa_pair["question"].lower()
-            answers = []
-            if qa_pair['answer']['date']:
-                year, month, day = "xxxx", "xx", "xx"
-                date = qa_pair["answer"]["date"]
-                if "year" in date and date["year"]:
-                    year = date["year"]
-                if "month" in date:
-                    month = MONTH_NUMBERS.get(date["month"].lower(), "xx")
-                if "day" in date and date["day"]:
-                    day = date["day"]
-                date_string = f"{year}-{month}-{day}"
-                if date_string != "xxxx-xx-xx":
-                    answers.append(date_string)
-
-            if qa_pair['answer']['number']:
-                answers.append(qa_pair['answer']['number'])
-
-            if qa_pair['answer']['spans']:
-                answers.extend(qa_pair['answer']['spans'])
-            question_id = qa_pair['query_id']
-            question_lisp = f'(utterance "{question}")'
-            answer_descriptions = " ".join([f'(description "{answer}")' for answer in answers])
-            answer_lisp = f'(targetValue (list {answer_descriptions}))'
-            context_lisp = f"(context (graph tables.TableKnowledgeGraph tables/{paragraph_id}.tagged))"
-            example_lisp = f"(example (id {question_id}) {question_lisp} {context_lisp} {answer_lisp})"
-            question_counter += 1
-            print(example_lisp, file=examples_file)
-    examples_file.close()
-    LOGGER.info(f"Wrote {question_counter} questions.")
+    LOGGER.info(f"Wrote {paragraph_counter} paragraphs.")
 
 
 def main(args):

@@ -45,7 +45,6 @@ def assert_dataset_correct(dataset):
     action_sequence = instance.fields["target_action_sequences"].field_list[0]
     action_indices = [l.sequence_index for l in action_sequence.field_list]
     actions = [actions[i] for i in action_indices]
-    print(actions)
     assert actions == ['@start@ -> n',
                        'n -> [<p,n>, p]',
                        '<p,n> -> count_structures',
@@ -59,11 +58,11 @@ class DropDatasetReaderTest(AllenNlpTestCase):
         offline_search_directory = "fixtures/data/"
         params = {
                 'lazy': False,
-                'tables_directory': "fixtures/data/",
+                'tables_directory': "fixtures/data/tables",
                 'offline_logical_forms_directory': offline_search_directory,
                 }
         reader = DropDatasetReader.from_params(Params(params))
-        dataset = reader.read("fixtures/data/sample_data.examples")
+        dataset = reader.read("fixtures/data/sample_data.json")
         assert_dataset_correct(dataset)
 
     def test_reader_reads_with_lfs_in_tarball(self):
@@ -71,11 +70,11 @@ class DropDatasetReaderTest(AllenNlpTestCase):
                 "fixtures/data/offline_search_output_with_single_tarball"
         params = {
                 'lazy': False,
-                'tables_directory': "fixtures/data/",
+                'tables_directory': "fixtures/data/tables",
                 'offline_logical_forms_directory': offline_search_directory,
                 }
         reader = DropDatasetReader.from_params(Params(params))
-        dataset = reader.read("fixtures/data/sample_data.examples")
+        dataset = reader.read("fixtures/data/sample_data.json")
         assert_dataset_correct(dataset)
 
     def test_reader_reads_with_tables_in_tarball(self):
@@ -87,5 +86,5 @@ class DropDatasetReaderTest(AllenNlpTestCase):
                 'offline_logical_forms_directory': offline_search_directory,
                 }
         reader = DropDatasetReader.from_params(Params(params))
-        dataset = reader.read("fixtures/data/tables_tarball_test_data/sample_data.examples")
+        dataset = reader.read("fixtures/data/tables_tarball_test_data/sample_data.json")
         assert_dataset_correct(dataset)

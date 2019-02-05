@@ -1,12 +1,12 @@
 {
   "dataset_reader": {
     "type": "drop",
-    "tables_directory": "fixtures/data/",
+    "tables_directory": "fixtures/data/tables",
     "offline_logical_forms_directory": "fixtures/data/",
     "embedding_file_for_entity_extraction": "fixtures/data/embedding_file.txt.gz"
   },
-  "train_data_path": "fixtures/data/sample_data.examples",
-  "validation_data_path": "fixtures/data/sample_data.examples",
+  "train_data_path": "fixtures/data/sample_data.json",
+  "validation_data_path": "fixtures/data/sample_data.json",
   "model": {
     "type": "drop_mml_parser",
     "question_embedder": {

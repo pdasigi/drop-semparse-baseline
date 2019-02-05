@@ -61,10 +61,6 @@ class DropSemanticParser(Model):
     rule_namespace : ``str``, optional (default=rule_labels)
         The vocabulary namespace to use for production rules.  The default corresponds to the
         default used in the dataset reader, so you likely don't need to modify this.
-    tables_directory : ``str``, optional (default=/wikitables/)
-        The directory to find tables when evaluating logical forms.  We rely on a call to SEMPRE to
-        evaluate logical forms, and SEMPRE needs to read the table from disk itself.  This tells
-        SEMPRE where to find the tables.
     """
     # pylint: disable=abstract-method
     def __init__(self,
@@ -91,7 +87,8 @@ class DropSemanticParser(Model):
         else:
             self._dropout = lambda x: x
         self._rule_namespace = rule_namespace
-        self._denotation_accuracy = Average()
+        self._denotation_exact_match = Average()
+        self._denotation_f1_score = Average()
         self._action_sequence_accuracy = Average()
         self._has_logical_form = Average()
 
@@ -515,7 +512,8 @@ class DropSemanticParser(Model):
         """
         return {
                 'lf_retrieval_acc': self._action_sequence_accuracy.get_metric(reset),
-                'denotation_acc': self._denotation_accuracy.get_metric(reset),
+                'denotation_em': self._denotation_exact_match.get_metric(reset),
+                'denotation_f1': self._denotation_f1_score.get_metric(reset),
                 'lf_percent': self._has_logical_form.get_metric(reset),
                 }
 
@@ -659,8 +657,9 @@ class DropSemanticParser(Model):
                         else:
                             self._has_logical_form(0.0)
                         if target_list is not None and target_list[0] is not None:
-                            denotation_correct = world[i].evaluate_logical_form(logical_form, target_list[i])
-                            self._denotation_accuracy(1.0 if denotation_correct else 0.0)
+                            em_score, f1_score = world[i].evaluate_logical_form(logical_form, target_list[i])
+                            self._denotation_exact_match(em_score)
+                            self._denotation_f1_score(f1_score)
                         outputs['best_action_sequence'].append(action_strings)
                         # Storing only the best denotation.
                         try:
@@ -677,7 +676,8 @@ class DropSemanticParser(Model):
                 outputs['entities'].append(world[i].knowledge_graph.entities)
             else:
                 self._has_logical_form(0.0)
-                self._denotation_accuracy(0.0)
+                self._denotation_exact_match(0.0)
+                self._denotation_f1_score(0.0)
         if metadata is not None:
             outputs["question_tokens"] = [x["question_tokens"] for x in metadata]
             outputs["original_table"] = [x["original_table"] for x in metadata]

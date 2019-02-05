@@ -7,14 +7,15 @@ from typing import Dict, List
 import os
 import gzip
 import tarfile
+import json
 
 from overrides import overrides
 
+from allennlp.common import JsonDict
 from allennlp.data.instance import Instance
 from allennlp.data.fields import (Field, TextField, MetadataField, ProductionRuleField,
                                   ListField, IndexField, KnowledgeGraphField)
 from allennlp.data.dataset_readers.dataset_reader import DatasetReader
-from allennlp.data.dataset_readers.semantic_parsing.wikitables import util as wikitables_util
 from allennlp.data.tokenizers import WordTokenizer
 from allennlp.data.tokenizers.tokenizer import Tokenizer
 from allennlp.data.tokenizers.word_splitter import SpacyWordSplitter
@@ -23,6 +24,7 @@ from allennlp.data.token_indexers.token_indexer import TokenIndexer
 from allennlp.semparse.worlds.world import ParsingError
 
 from semparse.context import ParagraphQuestionContext, DropWorld
+from semparse.context import util as context_util
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -58,7 +60,10 @@ class DropDatasetReader(DatasetReader):
         self._use_table_for_vocab = use_table_for_vocab
         self._max_table_tokens = max_table_tokens
         self._output_agendas = output_agendas
-        self._entity_extraction_embedding_file = embedding_file_for_entity_extraction
+        self._entity_extraction_embedding = None
+        if embedding_file_for_entity_extraction:
+            self._entity_extraction_embedding = context_util.read_pretrained_embedding(
+                    embedding_file_for_entity_extraction)
         self._entity_extraction_distance_threshold = distance_threshold_for_entity_extraction
 
     @overrides
@@ -100,41 +105,39 @@ class DropDatasetReader(DatasetReader):
             num_missing_logical_forms = 0
             num_lines = 0
             num_instances = 0
-            for line in data_file.readlines():
-                line = line.strip("\n")
-                if not line:
-                    continue
-                num_lines += 1
-                parsed_info = wikitables_util.parse_example_line(line)
-                question = parsed_info["question"]
-                # We want the tagged file, but the ``*.examples`` files typically point to CSV.
-                table_filename = os.path.join(self._tables_directory,
-                                              parsed_info["table_filename"].replace("csv", "tagged"))
-                if self._offline_logical_forms_directory:
-                    logical_forms_filename = os.path.join(self._offline_logical_forms_directory,
-                                                          parsed_info["id"] + '.gz')
-                    try:
-                        logical_forms_file = gzip.open(logical_forms_filename)
-                        logical_forms = []
-                        for logical_form_line in logical_forms_file:
-                            logical_forms.append(logical_form_line.strip().decode('utf-8'))
-                    except FileNotFoundError:
-                        logger.debug(f'Missing search output for instance {parsed_info["id"]}; skipping...')
-                        logical_forms = None
-                        num_missing_logical_forms += 1
-                        if not self._keep_if_no_logical_forms:
-                            continue
-                else:
-                    logical_forms = None
-
+            data = json.load(data_file)
+            for passage_id, passage_data in data.items():
+                # We want the tagged file. The preprocessing script is expected to have saved it as
+                # "<passage_id>.tagged".
+                table_filename = os.path.join(self._tables_directory, f"{passage_id}.tagged")
                 table_lines = [line.split("\t") for line in open(table_filename).readlines()]
-                instance = self.text_to_instance(question=question,
-                                                 table_lines=table_lines,
-                                                 target_values=parsed_info["target_values"],
-                                                 offline_search_output=logical_forms)
-                if instance is not None:
-                    num_instances += 1
-                    yield instance
+                for qa_data in passage_data["qa_pairs"]:
+                    question = qa_data["question"]
+                    query_id = qa_data["query_id"]
+                    if self._offline_logical_forms_directory:
+                        logical_forms_filename = os.path.join(self._offline_logical_forms_directory,
+                                                              query_id + '.gz')
+                        try:
+                            logical_forms_file = gzip.open(logical_forms_filename)
+                            logical_forms = []
+                            for logical_form_line in logical_forms_file:
+                                logical_forms.append(logical_form_line.strip().decode('utf-8'))
+                        except FileNotFoundError:
+                            logger.debug(f'Missing search output for instance {query_id}; skipping...')
+                            logical_forms = None
+                            num_missing_logical_forms += 1
+                            if not self._keep_if_no_logical_forms:
+                                continue
+                    else:
+                        logical_forms = None
+
+                    instance = self.text_to_instance(question=question,
+                                                     table_lines=table_lines,
+                                                     answer_json=qa_data["answer"],
+                                                     offline_search_output=logical_forms)
+                    if instance is not None:
+                        num_instances += 1
+                        yield instance
 
         if self._offline_logical_forms_directory:
             logger.info(f"Missing logical forms for {num_missing_logical_forms} out of {num_lines} instances")
@@ -143,7 +146,7 @@ class DropDatasetReader(DatasetReader):
     def text_to_instance(self,  # type: ignore
                          question: str,
                          table_lines: List[List[str]],
-                         target_values: List[str],
+                         answer_json: JsonDict,
                          offline_search_output: List[str] = None) -> Instance:
         """
         Reads text inputs and makes an instance. We assume we have access to DROP paragraphs parsed
@@ -157,7 +160,8 @@ class DropDatasetReader(DatasetReader):
         table_lines : ``List[List[str]]``
             Preprocessed paragraph content. See ``ParagraphQuestionContext.read_from_lines``
             for the expected format.
-        target_values : ``List[str]``
+        answer_json : ``JsonDict``
+            The "answer" dict from the original data file.
         offline_search_output : List[str], optional
             List of logical forms, produced by offline search. Not required during test.
         """
@@ -167,9 +171,9 @@ class DropDatasetReader(DatasetReader):
         # TODO(pradeep): We'll need a better way to input processed lines.
         paragraph_context = ParagraphQuestionContext.read_from_lines(table_lines,
                                                                      tokenized_question,
-                                                                     self._entity_extraction_embedding_file,
+                                                                     self._entity_extraction_embedding,
                                                                      self._entity_extraction_distance_threshold)
-        target_values_field = MetadataField(target_values)
+        target_values_field = MetadataField(answer_json)
         world = DropWorld(paragraph_context)
         world_field = MetadataField(world)
         # Note: Not passing any featre extractors when instantiating the field below. This will make

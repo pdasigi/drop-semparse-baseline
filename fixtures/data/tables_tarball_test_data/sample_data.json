@@ -1,0 +1,25 @@
+{
+	"sample_paragraph": {
+		"passage": "This text here does not matter because the dataset reader reads the paragraph content from the tagged file.",
+		"qa_pairs": [
+			{
+				"question": "did the redskins score in the final two minutes of the game?",
+				"answer": {
+					"number": "",
+					"date": {
+						"day": "",
+						"month": "",
+						"year": ""
+					},
+					"spans": [
+						"two late touchdowns"
+					],
+					"worker_id": "",
+					"hit_id": ""
+				},
+				"passage_id": "sample_paragraph",
+				"query_id": "q-283"
+			}
+		]
+	}
+}

@@ -20,7 +20,7 @@ class DropWorldTest(AllenNlpTestCase):
         self.tokenizer = WordTokenizer()
         tokens = self.tokenizer.tokenize("""how many points did the redskins score in the final two minutes of the
                                          game?""")
-        context = ParagraphQuestionContext.read_from_file("fixtures/data/sample_paragraph.tagged",
+        context = ParagraphQuestionContext.read_from_file("fixtures/data/tables/sample_paragraph.tagged",
                                                           tokens)
         self.world = DropWorld(context)
 

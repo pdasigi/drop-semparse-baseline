@@ -10,8 +10,6 @@ from unidecode import unidecode
 from allennlp.data.tokenizers import Token
 from allennlp.semparse.contexts.knowledge_graph import KnowledgeGraph
 
-from semparse.context import util as context_util
-
 
 # == stop words that will be omitted by ContextGenerator
 STOP_WORDS = {"", "", "all", "being", "-", "over", "through", "yourselves", "its", "before",
@@ -293,7 +291,7 @@ class ParagraphQuestionContext:
     def read_from_lines(cls,
                         lines: List[List[str]],
                         question_tokens: List[Token],
-                        word_embedding_file: str,
+                        word_embedding: Dict[str, numpy.ndarray],
                         distance_threshold: float) -> 'ParagraphQuestionContext':
         column_index_to_name = {}
 
@@ -346,26 +344,23 @@ class ParagraphQuestionContext:
                                                        dates=date_values,
                                                        entities=ner_values)
             last_row_index = row_index
-        embedding = None
-        if word_embedding_file:
-            embedding = context_util.read_pretrained_embedding(word_embedding_file)
         return cls(paragraph_data,
                    question_tokens,
-                   embedding,
+                   word_embedding,
                    distance_threshold)
 
     @classmethod
     def read_from_file(cls,
                        filename: str,
                        question_tokens: List[Token],
-                       word_embedding_file: str = None,
+                       word_embedding: Dict[str, numpy.ndarray] = None,
                        distance_threshold: float = 0.3) -> 'ParagraphQuestionContext':
         with open(filename, 'r') as file_pointer:
             reader = csv.reader(file_pointer, delimiter='\t', quoting=csv.QUOTE_NONE)
             lines = [line for line in reader]
             return cls.read_from_lines(lines,
                                        question_tokens,
-                                       word_embedding_file,
+                                       word_embedding,
                                        distance_threshold)
 
     def get_entities_from_question(self) -> Tuple[List[Tuple[str, Any]], List[Tuple[str, int]]]:

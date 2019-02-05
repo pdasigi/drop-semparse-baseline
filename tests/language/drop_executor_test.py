@@ -14,7 +14,7 @@ class DropExecutorTest(AllenNlpTestCase):
         self.tokenizer = WordTokenizer(SpacyWordSplitter(pos_tags=True))
         question = "how many touchdowns did the redskins score??"
         question_tokens = self.tokenizer.tokenize(question)
-        self.test_file = 'fixtures/data/sample_paragraph.tagged'
+        self.test_file = 'fixtures/data/tables/sample_paragraph.tagged'
         context = ParagraphQuestionContext.read_from_file(self.test_file, question_tokens)
         self.executor = DropExecutor(context.paragraph_data)
 

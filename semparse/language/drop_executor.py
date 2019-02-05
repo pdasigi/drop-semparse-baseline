@@ -1,15 +1,21 @@
-from typing import List, Dict, Union, Any
+import sys
+import os
+from typing import List, Dict, Union, Tuple, Any
 from collections import defaultdict
 import logging
 
+from allennlp.common import JsonDict
 from allennlp.semparse import util as semparse_util
 from allennlp.semparse.domain_languages.domain_language import ExecutionError
-from allennlp.semparse.contexts import TableQuestionContext
-from allennlp.tools import wikitables_evaluator as evaluator
 
 from semparse.context.paragraph_question_context import Argument, Date
 
-logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(os.path.join(__file__, os.pardir)))))
+sys.path.insert(0, os.path.join(ROOT_PATH, 'evaluation'))
+
+import evaluate as evaluator  # pylint: disable=wrong-import-position
+
+LOGGER = logging.getLogger(__name__)
 
 NestedList = List[Union[str, List]]  # pylint: disable=invalid-name
 
@@ -43,24 +49,15 @@ class DropExecutor:
             logical_form = f"({logical_form})"
         logical_form = logical_form.replace(",", " ")
         expression_as_list = semparse_util.lisp_to_nested_expression(logical_form)
-        # Expression list has an additional level of
-        # nesting at the top. For example, if the
-        # logical form is
-        # "(select all_structures relation:verb)",
-        # the expression list will be
-        # [['select', 'all_structures', 'relation:verb']].
-        # Removing the top most level of nesting.
-        result = self._handle_expression(expression_as_list[0])
+        result = self._handle_expression(expression_as_list)
         return result
 
-    def evaluate_logical_form(self, logical_form: str, target_list: List[str]) -> bool:
+    def evaluate_logical_form(self, logical_form: str, answer_json: JsonDict) -> Tuple[float, float]:
         """
-        Takes a logical form, and the list of target values as strings from the original lisp
-        string, and returns True iff the logical form executes to the target list.
+        Takes a logical form, and the answer dict from the original dataset, and returns exact match
+        and f1 measures, according to the two official metrics.
         """
-        normalized_target_list = [TableQuestionContext.normalize_string(value) for value in
-                                  target_list]
-        target_value_list = evaluator.to_value_list(normalized_target_list)
+        answer_string, _ = evaluator.to_string(answer_json)
         if not self.verbose:
             executor_logger = logging.getLogger('semparse.language.drop_executor')
             executor_logger.setLevel(logging.ERROR)
@@ -68,14 +65,14 @@ class DropExecutor:
             denotation = self.execute(logical_form)
         except Exception:  # pylint: disable=broad-except
             if self.verbose:
-                logger.warning(f'Failed to execute: {logical_form}')
-            return False
+                LOGGER.warning(f'Failed to execute: {logical_form}')
+            return 0.0, 0.0
         if isinstance(denotation, list):
             denotation_list = [str(denotation_item) for denotation_item in denotation]
         else:
             denotation_list = [str(denotation)]
-        denotation_value_list = evaluator.to_value_list(denotation_list)
-        return evaluator.check_denotation(target_value_list, denotation_value_list)
+        em_score, f1_score = evaluator.get_metrics(denotation_list, answer_string)
+        return em_score, f1_score
 
     ## Helper functions
     def _handle_expression(self, expression_list):
@@ -585,7 +582,7 @@ class DropExecutor:
         """
         structure_list: List[Dict[str, Argument]] = self._handle_expression(structure_expression_list)
         if not structure_list:
-            logger.warning("Trying to get first structure from an empty list: %s", structure_expression_list)
+            LOGGER.warning("Trying to get first structure from an empty list: %s", structure_expression_list)
             return []
         return [structure_list[0]]
 
@@ -596,7 +593,7 @@ class DropExecutor:
         """
         structure_list: List[Dict[str, Argument]] = self._handle_expression(structure_expression_list)
         if not structure_list:
-            logger.warning("Trying to get last structure from an empty list: %s", structure_expression_list)
+            LOGGER.warning("Trying to get last structure from an empty list: %s", structure_expression_list)
             return []
         return [structure_list[-1]]
 
@@ -608,11 +605,11 @@ class DropExecutor:
         """
         structure_list: List[Dict[str, Argument]] = self._handle_expression(structure_expression_list)
         if not structure_list:
-            logger.warning("Trying to get the previous structure from an empty list: %s",
+            LOGGER.warning("Trying to get the previous structure from an empty list: %s",
                            structure_expression_list)
             return []
         if len(structure_list) > 1:
-            logger.warning("Trying to get the previous structure from a non-singleton list: %s",
+            LOGGER.warning("Trying to get the previous structure from a non-singleton list: %s",
                            structure_expression_list)
         input_structure_index = self._get_structure_index(structure_list[0])  # Take the first structure.
         if input_structure_index > 0:
@@ -627,10 +624,10 @@ class DropExecutor:
         """
         structure_list: List[Dict[str, Argument]] = self._handle_expression(structure_expression_list)
         if not structure_list:
-            logger.warning("Trying to get the next structure from an empty list: %s", structure_expression_list)
+            LOGGER.warning("Trying to get the next structure from an empty list: %s", structure_expression_list)
             return []
         if len(structure_list) > 1:
-            logger.warning("Trying to get the next structure from a non-singleton list: %s",
+            LOGGER.warning("Trying to get the next structure from a non-singleton list: %s",
                            structure_expression_list)
         input_structure_index = self._get_structure_index(structure_list[-1])  # Take the last structure.
         if input_structure_index < len(self.paragraph_data) - 1 and input_structure_index != -1:

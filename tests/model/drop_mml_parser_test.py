@@ -11,7 +11,7 @@ class DropMmlParserTest(ModelTestCase):
     def setUp(self):
         super(DropMmlParserTest, self).setUp()
         config_path = "fixtures/model/experiment.json"
-        data_path = "fixtures/data/sample_data.examples"
+        data_path = "fixtures/data/sample_data.json"
         self.set_up_model(config_path, data_path)
 
     @flaky

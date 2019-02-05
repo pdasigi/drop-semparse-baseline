@@ -3,13 +3,14 @@ We store the information related to context sensitive execution of logical forms
 We assume that the logical forms are written in the variable-free language defined by
 ``semparse.drop_type_declaration``
 """
-from typing import Dict, List, Set, Union
+from typing import Dict, List, Set, Union, Tuple
 import re
 import logging
 
 from nltk.sem.logic import Type
 from overrides import overrides
 
+from allennlp.common import JsonDict
 from allennlp.semparse.worlds.world import ParsingError, World
 
 from semparse.context.paragraph_question_context import ParagraphQuestionContext
@@ -237,9 +238,9 @@ class DropWorld(World):
         """Execute the logical form"""
         return self._executor.execute(logical_form)
 
-    def evaluate_logical_form(self, logical_form: str, target_list: List[str]) -> bool:
+    def evaluate_logical_form(self, logical_form: str, answer: JsonDict) -> Tuple[float, float]:
         """
-        Takes a logical forms and a list of target values as strings from the original lisp
-        representation of instances, and returns True iff the logical form executes to those values.
+        Takes a logical form and the target answer from the original data file and returns the exact match and f1
+        measures, which are defined by ``DROP-dataset/evaluation/evaluate.py``, the official evaluator.
         """
-        return self._executor.evaluate_logical_form(logical_form, target_list)
+        return self._executor.evaluate_logical_form(logical_form, answer)

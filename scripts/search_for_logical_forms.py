@@ -8,6 +8,7 @@ import gzip
 import logging
 import math
 import json
+import tarfile
 from multiprocessing import Process
 
 from tqdm import tqdm
@@ -66,8 +67,8 @@ def search(tables_directory: str,
         else:
             all_logical_forms = walker.get_all_logical_forms(max_num_logical_forms=10000)
         for logical_form in all_logical_forms:
-            exact_match_score, f1_score = world.evaluate_logical_form(logical_form, answer)
-            if exact_match_score > 0.0 or f1_score > 0.0:
+            exact_match_score, _ = world.evaluate_logical_form(logical_form, answer)
+            if exact_match_score == 1:
                 correct_logical_forms.append(logical_form)
         if output_separate_files and correct_logical_forms:
             with gzip.open(f"{output_path}/{question_id}.gz", "wt") as output_file_pointer:
@@ -90,7 +91,7 @@ def search(tables_directory: str,
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("table_directory", type=str, help="Location of the tables")
-    parser.add_argument("data_file", type=str, help="Path to the *.examples file")
+    parser.add_argument("data_file", type=str, help="Path to the data file in json format")
     parser.add_argument("output_path", type=str, help="""Path to the output directory if
                         'output_separate_files' is set, or to the output file if not.""")
     parser.add_argument("--max-path-length", type=int, dest="max_path_length", default=10,
@@ -112,14 +113,30 @@ if __name__ == "__main__":
                         help="Threshold to use to extract similar tokens for paragraph as entities")
     args = parser.parse_args()
     input_data: JsonDict = []
-    for _, passage_data in json.load(open(args.data_file)).items():
+    for passage_id, passage_data in json.load(open(args.data_file)).items():
         for qa_data in passage_data["qa_pairs"]:
             input_data.append({"question": qa_data["question"],
                                "answer": qa_data["answer"],
                                "query_id": qa_data["query_id"],
-                               "passage_id": qa_data["passage_id"]})
+                               "passage_id": passage_id})
+    table_directory = args.table_directory
+    tarball_with_all_tables: str = None
+    for filename in os.listdir(table_directory):
+        if filename.endswith(".tar.gz"):
+            tarball_with_all_tables = os.path.join(table_directory,
+                                                   filename)
+            break
+    if tarball_with_all_tables is not None:
+        print(f"Found a tarball in the tables directory: {tarball_with_all_tables}")
+        print("Assuming it contains tables for all questions and un-taring it.")
+        # If you're running this with beaker, the input directory will be read-only and we
+        # cannot untar the files in the directory itself. So we will do so in /tmp, but that
+        # means the new tables directory will be /tmp/tables.
+        table_directory = "/tmp/tables"
+        tarfile.open(tarball_with_all_tables,
+                     mode='r:gz').extractall(path='/tmp/')
     if args.num_splits == 0 or len(input_data) <= args.num_splits or not args.output_separate_files:
-        search(args.table_directory, input_data, args.output_path, args.max_path_length,
+        search(table_directory, input_data, args.output_path, args.max_path_length,
                args.max_num_logical_forms, args.use_agenda, args.output_separate_files,
                args.embedding_file, args.distance_threshold)
     else:
@@ -131,7 +148,7 @@ if __name__ == "__main__":
             else:
                 data_split = input_data[start_index:start_index + chunk_size]
             start_index += chunk_size
-            process = Process(target=search, args=(args.domain, args.table_directory, data_split,
+            process = Process(target=search, args=(table_directory, data_split,
                                                    args.output_path, args.max_path_length,
                                                    args.max_num_logical_forms, args.use_agenda,
                                                    args.output_separate_files, args.embedding_file,

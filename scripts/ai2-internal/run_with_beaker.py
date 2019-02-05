@@ -20,18 +20,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(os.path.join(os.path.join(__f
 from allennlp.common.params import Params
 
 
-def main(param_file: str, args: argparse.Namespace):
+def main(args: argparse.Namespace):
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], universal_newlines=True).strip()
     image = f"allennlp/allennlp:{commit}"
     overrides = ""
 
-    # Reads params and sets environment.
-    params = Params.from_file(param_file, overrides)
-    flat_params = params.as_flat_dict()
-    env = {}
-    for k, v in flat_params.items():
-        k = str(k).replace('.', '_')
-        env[k] = str(v)
 
     # If the git repository is dirty, add a random hash.
     result = subprocess.run('git diff-index --quiet HEAD --', shell=True)
@@ -50,28 +43,71 @@ def main(param_file: str, args: argparse.Namespace):
         blueprint = subprocess.check_output(f'beaker blueprint create --quiet {image}', shell=True, universal_newlines=True).strip()
         print(f"  Blueprint created: {blueprint}")
 
-    config_dataset_id = subprocess.check_output(f'beaker dataset create --quiet {param_file}', shell=True, universal_newlines=True).strip()
-
-    allennlp_command = [
-            "python",
-            "-m",
-            "allennlp.run",
-            "train",
-            "/config.json",
-            "-s",
-            "/output",
-            "--file-friendly-logging",
-            "--include-package",
-            "semparse"
-        ]
 
     dataset_mounts = []
-    for source in args.source + [f"{config_dataset_id}:/config.json"]:
+    evaluator_dataset_id = subprocess.check_output(f'beaker dataset create --quiet {args.evaluation_script}', shell=True, universal_newlines=True).strip()
+    dataset_mounts.append({"datasetId": evaluator_dataset_id,
+                           "containerPath": "/evaluate.py"})
+
+    for source in args.source:
         datasetId, containerPath = source.split(":")
         dataset_mounts.append({
             "datasetId": datasetId,
             "containerPath": containerPath
         })
+
+    env = {}
+
+    if args.experiment_type == "training":
+        # Reads params and sets environment.
+        params = Params.from_file(args.param_file, overrides)
+        flat_params = params.as_flat_dict()
+        for k, v in flat_params.items():
+            k = str(k).replace('.', '_')
+            env[k] = str(v)
+        config_dataset_id = subprocess.check_output(f'beaker dataset create --quiet {args.param_file}', shell=True, universal_newlines=True).strip()
+        dataset_mounts.append({"datasetId": config_dataset_id,
+                               "containerPath": "/config.json"})
+        command = [
+                "python",
+                "-m",
+                "allennlp.run",
+                "train",
+                "/config.json",
+                "-s",
+                "/output",
+                "--file-friendly-logging",
+                "--include-package",
+                "semparse"
+            ]
+
+    elif args.experiment_type == "search":
+        data_dataset_id = subprocess.check_output(f'beaker dataset create --quiet {args.data_file}', shell=True, universal_newlines=True).strip()
+        dataset_mounts.append({"datasetId": data_dataset_id,
+                               "containerPath": "/data.json"})
+        # TODO (pradeep): Expose more options below (e.g.: using agenda, num_splits, path_length etc.)
+        command = [
+                "python",
+                "scripts/search_for_logical_forms.py",
+                "/tables",
+                "/data.json",
+                "/output/logical_forms",
+                "--max-path-length",
+                "10",
+                "--output-separate-files",
+                "--num-splits",
+                "10"
+            ]
+        if args.use_embedding:
+            # Hardcoding Matt's Glove dataset on Beaker. Change this if you need to.
+            dataset_mounts.append({"datasetId": "ds_0gnx4e9o3ap1",
+                                   "containerPath": "/glove_vectors/"})
+            command.extend(["--embedding-file",
+                            "/glove_vectors/glove.6B.50d.txt.gz",
+                            "--distance-threshold",
+                            args.distance_threshold])
+    else:
+        raise RuntimeError(f"Unknown experiment type: {args.experiemnt_type}")
 
     for var in args.env:
         key, value = var.split("=")
@@ -88,12 +124,12 @@ def main(param_file: str, args: argparse.Namespace):
         "description": args.desc,
         "blueprint": blueprint,
         "resultPath": "/output",
-        "args": allennlp_command,
+        "args": command,
         "datasetMounts": dataset_mounts,
         "requirements": requirements,
         "env": env
     }
-    config_task = {"spec": config_spec, "name": "training"}
+    config_task = {"spec": config_spec, "name": args.experiment_type}
 
     config = {
         "tasks": [config_task]
@@ -120,8 +156,19 @@ def main(param_file: str, args: argparse.Namespace):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-
-    parser.add_argument('param_file', type=str, help='The model configuration file.')
+    parser.add_argument('evaluation_script', type=str,
+                        help='Path to the official evaluation script, required for training and search.')
+    parser.add_argument('--experiment-type', dest="experiment_type", type=str, choices=['training', 'search'],
+                        default='training', help='Is it training or search that you want to run on beaker?')
+    parser.add_argument('--param-file', dest="param_file", type=str,
+                        help='The model configuration file, required only for training')
+    parser.add_argument('--data-file', dest="data_file", type=str,
+                        help='Path to the original dataset file, required only for search')
+    parser.add_argument('--use-embedding-for-search', dest="use_embedding", action='store_true',
+                        help='''Should we use an embedding file to get better context representations during search?
+                                Glove's 50d vectors will be used.''')
+    parser.add_argument("--distance-threshold-for-similarity", dest="distance_threshold", type=float, default=0.3,
+                        help="Value to use as threshold for measuring similarity with embedding (default 0.3).")
     parser.add_argument('--name', type=str, help='A name for the experiment.')
     parser.add_argument('--spec_output_path', type=str, help='The destination to write the experiment spec.')
     parser.add_argument('--dry-run', action='store_true', help='If specified, an experiment will not be created.')
@@ -135,4 +182,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(args.param_file, args)
+    main(args)

@@ -12,6 +12,9 @@ from semparse.context.paragraph_question_context import Argument, Date
 
 ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(os.path.join(__file__, os.pardir)))))
 sys.path.insert(0, os.path.join(ROOT_PATH, 'evaluation'))
+# If you're running on beaker, the evaluation script is copied to the root directory on the Docker image by the
+# "run_with_beaker.py" script.
+sys.path.insert(0, "/")
 
 import evaluate as evaluator  # pylint: disable=wrong-import-position
 

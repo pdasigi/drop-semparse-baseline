@@ -91,7 +91,7 @@ def search(tables_directory: str,
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("table_directory", type=str, help="Location of the tables")
-    parser.add_argument("data_file", type=str, help="Path to the data file in json format")
+    parser.add_argument("data_files_path", type=str, help="Path to the directory with data files in json format")
     parser.add_argument("output_path", type=str, help="""Path to the output directory if
                         'output_separate_files' is set, or to the output file if not.""")
     parser.add_argument("--max-path-length", type=int, dest="max_path_length", default=10,
@@ -113,7 +113,12 @@ if __name__ == "__main__":
                         help="Threshold to use to extract similar tokens for paragraph as entities")
     args = parser.parse_args()
     input_data: JsonDict = []
-    for passage_id, passage_data in json.load(open(args.data_file)).items():
+    all_passages_data: JsonDict = {}
+    for file_name in os.listdir(args.data_files_path):
+        if file_name.endswith(".json"):
+            data_file = os.path.join(args.data_files_path, file_name)
+            all_passages_data.update(json.load(open(data_file)))
+    for passage_id, passage_data in all_passages_data.items():
         for qa_data in passage_data["qa_pairs"]:
             input_data.append({"question": qa_data["question"],
                                "answer": qa_data["answer"],

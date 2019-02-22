@@ -217,7 +217,7 @@ def get_tagged_info(table_info: List[Dict[str, Span]],
     return tagged_info
 
 
-def make_files_for_semparse(data_file: str,
+def make_files_for_semparse(data_files_path: str,
                             output_path: str,
                             tagger: Callable[[str], JsonDict],
                             coref_model: Optional[Model]):
@@ -228,8 +228,12 @@ def make_files_for_semparse(data_file: str,
     if not os.path.exists(tables_path):
         os.mkdir(tables_path)
 
-    data = json.load(open(data_file))
-    LOGGER.info(f"Read data from {data_file}")
+    data = {}
+    for file_name in os.listdir(data_files_path):
+        if file_name.endswith('.json'):
+            data_file = os.path.join(data_files_path, file_name)
+            data.update(json.load(open(data_file)))
+            LOGGER.info(f"Read data from {data_file}")
     paragraph_counter = 0
     for paragraph_id, paragraph_data in data.items():
         passage = paragraph_data['passage']
@@ -336,13 +340,14 @@ def main(args):
         coref_model = None
     if args.verbose:
         logging.basicConfig(level=logging.INFO)
-    make_files_for_semparse(args.data_file, args.output_path, tagger_function, coref_model)
+    make_files_for_semparse(args.data_files_path, args.output_path, tagger_function, coref_model)
 
 
 if __name__ == '__main__':
     # pylint: disable=invalid-name
     argparser = argparse.ArgumentParser()
-    argparser.add_argument("data_file", type=str, help="Path to input data file in JSON format")
+    argparser.add_argument("data_files_path", type=str,
+                           help="Path to directory containing input data file(s) in JSON format")
     argparser.add_argument("output_path", type=str, help="Path to the output directory")
     argparser.add_argument("tagger", type=str, help="Type of tagger to use")
     argparser.add_argument("--include-coref", dest="include_coref", action="store_true",

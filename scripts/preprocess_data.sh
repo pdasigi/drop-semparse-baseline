@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage:
-#    preprocess.sh path/to/train/file path/to/output/folder
+#    preprocess.sh path/to/folder/with/train/file path/to/output/folder
 #
 # Will create folders dep, oie, and srl in the output folder.
 

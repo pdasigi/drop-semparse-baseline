@@ -45,9 +45,20 @@ def main(args: argparse.Namespace):
 
 
     dataset_mounts = []
-    evaluator_dataset_id = subprocess.check_output(f'beaker dataset create --quiet {args.evaluation_script}', shell=True, universal_newlines=True).strip()
-    dataset_mounts.append({"datasetId": evaluator_dataset_id,
-                           "containerPath": "/evaluate.py"})
+    if args.evaluation_script is None:
+        assert args.experiment_type == "preprocess", "Evaluation script is required for training and search!"
+    else:
+        evaluator_dataset_id = subprocess.check_output(f'beaker dataset create --quiet {args.evaluation_script}', shell=True, universal_newlines=True).strip()
+        dataset_mounts.append({"datasetId": evaluator_dataset_id,
+                               "containerPath": "/evaluate.py"})
+
+
+    if args.data_file_path is None:
+        assert args.experiment_type == "training", "Path to data files required for search and preprocessing!"
+    else:
+        data_dataset_id = subprocess.check_output(f'beaker dataset create --quiet {args.data_file_path}', shell=True, universal_newlines=True).strip()
+        dataset_mounts.append({"datasetId": data_dataset_id,
+                               "containerPath": "/data_files/"})
 
     for source in args.source:
         datasetId, containerPath = source.split(":")
@@ -82,15 +93,12 @@ def main(args: argparse.Namespace):
             ]
 
     elif args.experiment_type == "search":
-        data_dataset_id = subprocess.check_output(f'beaker dataset create --quiet {args.data_file}', shell=True, universal_newlines=True).strip()
-        dataset_mounts.append({"datasetId": data_dataset_id,
-                               "containerPath": "/data.json"})
         # TODO (pradeep): Expose more options below (e.g.: using agenda, num_splits, path_length etc.)
         command = [
                 "python",
                 "scripts/search_for_logical_forms.py",
                 "/tables",
-                "/data.json",
+                "/data_files",
                 "/output/logical_forms",
                 "--max-path-length",
                 "10",
@@ -106,6 +114,17 @@ def main(args: argparse.Namespace):
                             "/glove_vectors/glove.6B.50d.txt.gz",
                             "--distance-threshold",
                             args.distance_threshold])
+    elif args.experiment_type == "preprocess":
+        command = [
+                "python",
+                "scripts/preprocess_data.py",
+                "/data_files",
+                "/output/",
+                args.preprocessing_tagger_type,
+            ]
+        if args.include_coref_while_preprocessing:
+            command.append('--include-coref')
+
     else:
         raise RuntimeError(f"Unknown experiment type: {args.experiemnt_type}")
 
@@ -156,14 +175,20 @@ def main(args: argparse.Namespace):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('evaluation_script', type=str,
+    parser.add_argument('--evaluation-script', dest='evaluation_script', type=str,
                         help='Path to the official evaluation script, required for training and search.')
-    parser.add_argument('--experiment-type', dest="experiment_type", type=str, choices=['training', 'search'],
-                        default='training', help='Is it training or search that you want to run on beaker?')
+    parser.add_argument('--experiment-type', dest="experiment_type", type=str,
+                        choices=['training', 'search', 'preprocess'], default='training',
+                        help='Are you training a model, searching for logical forms, or preprocessing data on beaker?')
     parser.add_argument('--param-file', dest="param_file", type=str,
                         help='The model configuration file, required only for training')
-    parser.add_argument('--data-file', dest="data_file", type=str,
-                        help='Path to the original dataset file, required only for search')
+    parser.add_argument('--data-file-path', dest="data_file_path", type=str,
+                        help='Path to the directory with the original dataset files; required only for search or preprocessing')
+    parser.add_argument('--preprocessing-tagger-type', dest="preprocessing_tagger_type", type=str,
+                        choices=['dep', 'oie', 'srl'], default='srl',
+                        help='Type of tagger to use for extracting predicate argument structures')
+    parser.add_argument('--include-coref-while-preprocessing', dest='include_coref_while_preprocessing',
+                        action='store_true', help='Should we include coref information while performing IE on paragraphs?')
     parser.add_argument('--use-embedding-for-search', dest="use_embedding", action='store_true',
                         help='''Should we use an embedding file to get better context representations during search?
                                 Glove's 50d vectors will be used.''')

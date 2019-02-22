@@ -30,7 +30,8 @@ def search(tables_directory: str,
            use_agenda: bool,
            output_separate_files: bool,
            embedding_file: str,
-           distance_threshold: float) -> None:
+           distance_threshold: float,
+           exact_match: bool) -> None:
     print(f"Starting search with {len(data)} instances", file=sys.stderr)
     executor_logger = logging.getLogger('weak_supervision.executors.drop_executor')
     executor_logger.setLevel(logging.ERROR)
@@ -67,8 +68,8 @@ def search(tables_directory: str,
         else:
             all_logical_forms = walker.get_all_logical_forms(max_num_logical_forms=10000)
         for logical_form in all_logical_forms:
-            exact_match_score, _ = world.evaluate_logical_form(logical_form, answer)
-            if exact_match_score == 1:
+            exact_match_score, f1_score = world.evaluate_logical_form(logical_form, answer)
+            if (not exact_match and f1_score > 0) or (exact_match and exact_match_score == 1):
                 correct_logical_forms.append(logical_form)
         if output_separate_files and correct_logical_forms:
             with gzip.open(f"{output_path}/{question_id}.gz", "wt") as output_file_pointer:
@@ -111,6 +112,9 @@ if __name__ == "__main__":
                         are similar to question tokens and add them to context.""")
     parser.add_argument("--distance-threshold", dest="distance_threshold", type=float, default=0.3,
                         help="Threshold to use to extract similar tokens for paragraph as entities")
+    parser.add_argument("--exact-match", dest="exact_match", action="store_true",
+                        help="""Should we only keep logical forms whose denotations have em_score of 1?
+                                If not set, we'll keep all those whose f1_score > 0.""")
     args = parser.parse_args()
     input_data: JsonDict = []
     all_passages_data: JsonDict = {}
@@ -143,7 +147,7 @@ if __name__ == "__main__":
     if args.num_splits == 0 or len(input_data) <= args.num_splits or not args.output_separate_files:
         search(table_directory, input_data, args.output_path, args.max_path_length,
                args.max_num_logical_forms, args.use_agenda, args.output_separate_files,
-               args.embedding_file, args.distance_threshold)
+               args.embedding_file, args.distance_threshold, args.exact_match)
     else:
         chunk_size = math.ceil(len(input_data)/args.num_splits)
         start_index = 0
@@ -157,6 +161,6 @@ if __name__ == "__main__":
                                                    args.output_path, args.max_path_length,
                                                    args.max_num_logical_forms, args.use_agenda,
                                                    args.output_separate_files, args.embedding_file,
-                                                   args.distance_threshold))
+                                                   args.distance_threshold, args.exact_match))
             print(f"Starting process {i}", file=sys.stderr)
             process.start()

@@ -298,8 +298,7 @@ class ParagraphQuestionContext:
         header = lines[0] # the first line is the header
         index = 1
         paragraph_data: List[Dict[str, Argument]] = []
-        while lines[index][0] == '-1':
-            # column names start with relation:.
+        while index < len(lines) and lines[index][0] == '-1':
             current_line = lines[index]
             column_name = current_line[2]
             column_index = int(current_line[1])

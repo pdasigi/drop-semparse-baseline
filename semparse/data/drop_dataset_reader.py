@@ -103,44 +103,54 @@ class DropDatasetReader(DatasetReader):
                          mode='r:gz').extractall(path=self._tables_directory)
         with open(file_path, "r") as data_file:
             num_missing_logical_forms = 0
-            num_lines = 0
+            num_qa_json = 0
+            num_missing_tables = 0
+            num_all_tables = 0
             num_instances = 0
             data = json.load(data_file)
             for passage_id, passage_data in data.items():
+                num_all_tables += 1
                 # We want the tagged file. The preprocessing script is expected to have saved it as
                 # "<passage_id>.tagged".
                 table_filename = os.path.join(self._tables_directory, f"{passage_id}.tagged")
-                table_lines = [line.split("\t") for line in open(table_filename).readlines()]
-                for qa_data in passage_data["qa_pairs"]:
-                    question = qa_data["question"]
-                    query_id = qa_data["query_id"]
-                    if self._offline_logical_forms_directory:
-                        logical_forms_filename = os.path.join(self._offline_logical_forms_directory,
-                                                              query_id + '.gz')
-                        try:
-                            logical_forms_file = gzip.open(logical_forms_filename)
-                            logical_forms = []
-                            for logical_form_line in logical_forms_file:
-                                logical_forms.append(logical_form_line.strip().decode('utf-8'))
-                        except FileNotFoundError:
-                            logger.debug(f'Missing search output for instance {query_id}; skipping...')
+                try:
+                    table_lines = [line.split("\t") for line in open(table_filename).readlines()]
+                    for qa_data in passage_data["qa_pairs"]:
+                        num_qa_json += 1
+                        question = qa_data["question"]
+                        query_id = qa_data["query_id"]
+                        if self._offline_logical_forms_directory:
+                            logical_forms_filename = os.path.join(self._offline_logical_forms_directory,
+                                                                  query_id + '.gz')
+                            try:
+                                logical_forms_file = gzip.open(logical_forms_filename)
+                                logical_forms = []
+                                for logical_form_line in logical_forms_file:
+                                    logical_forms.append(logical_form_line.strip().decode('utf-8'))
+                            except FileNotFoundError:
+                                logger.debug(f'Missing search output for instance {query_id}; skipping...')
+                                logical_forms = None
+                                num_missing_logical_forms += 1
+                                if not self._keep_if_no_logical_forms:
+                                    continue
+                        else:
                             logical_forms = None
-                            num_missing_logical_forms += 1
-                            if not self._keep_if_no_logical_forms:
-                                continue
-                    else:
-                        logical_forms = None
 
-                    instance = self.text_to_instance(question=question,
-                                                     table_lines=table_lines,
-                                                     answer_json=qa_data["answer"],
-                                                     offline_search_output=logical_forms)
-                    if instance is not None:
-                        num_instances += 1
-                        yield instance
+                        instance = self.text_to_instance(question=question,
+                                                         table_lines=table_lines,
+                                                         answer_json=qa_data["answer"],
+                                                         offline_search_output=logical_forms)
+                        if instance is not None:
+                            num_instances += 1
+                            yield instance
 
+                except FileNotFoundError:
+                    logger.info(f"Missing table file: {table_filename}")
+                    num_missing_tables += 1
+
+        logger.info(f"Missing table files for {num_missing_tables} out of {num_all_tables} paragraphs")
         if self._offline_logical_forms_directory:
-            logger.info(f"Missing logical forms for {num_missing_logical_forms} out of {num_lines} instances")
+            logger.info(f"Missing lfs for {num_missing_logical_forms} out of {num_qa_json} instances")
             logger.info(f"Kept {num_instances} instances")
 
     def text_to_instance(self,  # type: ignore

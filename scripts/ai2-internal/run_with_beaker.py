@@ -101,10 +101,10 @@ def main(args: argparse.Namespace):
                 "/data_files",
                 "/output/logical_forms",
                 "--max-path-length",
-                "10",
+                "9",
                 "--output-separate-files",
                 "--num-splits",
-                "10"
+                "15"
             ]
         if args.use_embedding:
             # Hardcoding Matt's Glove dataset on Beaker. Change this if you need to.

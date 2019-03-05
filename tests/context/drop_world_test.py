@@ -18,13 +18,19 @@ class DropWorldTest(AllenNlpTestCase):
     def setUp(self):
         super().setUp()
         self.tokenizer = WordTokenizer()
-        tokens = self.tokenizer.tokenize("""how many points did the redskins score in the final two minutes of the
-                                         game?""")
+        self.tokens = self.tokenizer.tokenize("""how many points did the redskins score in the final
+                                              two minutes of the game?""")
         context = ParagraphQuestionContext.read_from_file("fixtures/data/tables/sample_paragraph.tagged",
-                                                          tokens)
+                                                          self.tokens)
         self.world = DropWorld(context)
 
     def test_get_agenda(self):
         assert self.world.get_agenda() == ['<p,n> -> count_structures', 's -> string:point',
                                            's -> string:redskin', 's -> string:score', 's -> string:two',
                                            's -> string:game']
+
+    def test_world_with_empty_paragraph(self):
+        context = ParagraphQuestionContext.read_from_file("fixtures/data/tables/empty_paragraph.tagged",
+                                                          self.tokens)
+        # We're just confirming that creating a world wit empty context does not throw an error.
+        DropWorld(context)

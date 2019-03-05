@@ -67,3 +67,61 @@ class TestParagraphQuestionContext(AllenNlpTestCase):
                              ('four', ['relation:arg1']),
                              ('six', ['relation:arg1'])]
         assert all([entity in entities for entity in expected_entities])
+
+    def test_get_knowledge_graph(self):
+        knowledge_graph = self.context.get_knowledge_graph()
+        assert knowledge_graph.entities == ['-1',
+                                            '2',
+                                            'relation:arg0',
+                                            'relation:arg1',
+                                            'relation:arg2',
+                                            'relation:argm_loc',
+                                            'relation:argm_mnr',
+                                            'relation:argm_neg',
+                                            'relation:argm_prp',
+                                            'relation:argm_tmp',
+                                            'relation:verb',
+                                            'string:game',
+                                            'string:redskin',
+                                            'string:score',
+                                            'string:two']
+        assert knowledge_graph.neighbors == {'relation:verb': ['string:score'],
+                                             'relation:arg0': ['string:redskin'],
+                                             'relation:arg1': ['string:two'],
+                                             'relation:argm_loc': [],
+                                             'relation:argm_tmp': [],
+                                             'relation:arg2': [],
+                                             'relation:argm_neg': [],
+                                             'relation:argm_prp': ['string:game'],
+                                             'relation:argm_mnr': [],
+                                             'string:redskin': ['relation:arg0'],
+                                             'string:score': ['relation:verb'],
+                                             'string:two': ['relation:arg1'],
+                                             'string:game': ['relation:argm_prp'],
+                                             '2': [],
+                                             '-1': []}
+        assert knowledge_graph.entity_text == {'relation:verb': 'verb',
+                                               'relation:arg0': 'arg0',
+                                               'relation:arg1': 'arg1',
+                                               'relation:argm_loc': 'argm loc',
+                                               'relation:argm_tmp': 'argm tmp',
+                                               'relation:arg2': 'arg2',
+                                               'relation:argm_neg': 'argm neg',
+                                               'relation:argm_prp': 'argm prp',
+                                               'relation:argm_mnr': 'argm mnr',
+                                               'string:redskin': 'redskin',
+                                               'string:score': 'score',
+                                               'string:two': 'two',
+                                               'string:game': 'game',
+                                               '2': '2',
+                                               '-1': '-1'}
+
+    def test_get_knowledge_graph_with_empty_paragraph(self):
+        question = "did the redskins score in the final two minutes of the game?"
+        question_tokens = self.tokenizer.tokenize(question)
+        empty_test_file = 'fixtures/data/tables/empty_paragraph.tagged'
+        empty_context = ParagraphQuestionContext.read_from_file(empty_test_file, question_tokens)
+        knowledge_graph = empty_context.get_knowledge_graph()
+        assert knowledge_graph.entities == []
+        assert knowledge_graph.neighbors == {}
+        assert knowledge_graph.entity_text == {}

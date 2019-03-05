@@ -52,7 +52,7 @@ def search(tables_directory: str,
         table_file = f"{instance_data['passage_id']}.tagged"
         answer = instance_data["answer"]
         tokenized_question = tokenizer.tokenize(utterance)
-        table_file = f"{tables_directory}/{table_file}"
+        table_file = f"{tables_directory}/tables/{table_file}"
         context = ParagraphQuestionContext.read_from_file(table_file,
                                                           tokenized_question,
                                                           embedding,

@@ -1,6 +1,6 @@
 {
   "dataset_reader": {
-    "type": "drop",
+    "type": "drop-semantic-parser",
     "tables_directory": "fixtures/data/tables",
     "offline_logical_forms_directory": "fixtures/data/",
     "embedding_file_for_entity_extraction": "fixtures/data/embedding_file.txt.gz"

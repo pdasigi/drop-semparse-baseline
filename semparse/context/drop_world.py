@@ -72,7 +72,11 @@ class DropWorld(World):
         for number_in_question in self._question_numbers:
             self._map_name(f"num:{number_in_question}", keep_mapping=True)
 
-        for relation_name in paragraph_context.paragraph_data[0].keys():
+        relation_names: List[str] = []
+        if paragraph_context.paragraph_data:
+            relation_names = list(paragraph_context.paragraph_data[0].keys())
+
+        for relation_name in relation_names:
             self._map_name(relation_name, keep_mapping=True)
 
         self.terminal_productions: Dict[str, str] = {}

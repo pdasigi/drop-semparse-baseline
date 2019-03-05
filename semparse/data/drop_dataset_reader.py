@@ -29,7 +29,7 @@ from semparse.context import util as context_util
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-@DatasetReader.register("drop")
+@DatasetReader.register("drop-semantic-parser")
 class DropDatasetReader(DatasetReader):
     """
     This ``DatasetReader`` takes DROP ``*.examples`` files and converts them into
@@ -83,9 +83,9 @@ class DropDatasetReader(DatasetReader):
                 # If you're running this with beaker, the input directory will be read-only and we
                 # cannot untar the files in the directory itself. So we will do so in /tmp, but that
                 # means the new offline logical forms directory will be /tmp.
-                self._offline_logical_forms_directory = "/tmp/"
+                self._offline_logical_forms_directory = "/tmp/logical_forms/"
                 tarfile.open(tarball_with_all_lfs,
-                             mode='r:gz').extractall(path=self._offline_logical_forms_directory)
+                             mode='r:gz').extractall(path="/tmp/")
         tarball_with_all_tables: str = None
         for filename in os.listdir(self._tables_directory):
             if filename.endswith(".tar.gz"):
@@ -98,7 +98,7 @@ class DropDatasetReader(DatasetReader):
             # If you're running this with beaker, the input directory will be read-only and we
             # cannot untar the files in the directory itself. So we will do so in /tmp, but that
             # means the new tables directory will be /tmp.
-            self._tables_directory = "/tmp/"
+            self._tables_directory = "/tmp/tables/"
             tarfile.open(tarball_with_all_tables,
                          mode='r:gz').extractall(path=self._tables_directory)
         with open(file_path, "r") as data_file:

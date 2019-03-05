@@ -246,44 +246,45 @@ class ParagraphQuestionContext:
             entities: Set[str] = set()
             neighbors: Dict[str, List[str]] = defaultdict(list)
             entity_text: Dict[str, str] = {}
-            # Add all column names to entities. We'll define their neighbors to be empty lists for
-            # now, and later add number and string entities as needed.
-            for relation_name in self.paragraph_data[0].keys():
-                # Add relation names to entities, with no neighbors yet.
-                entities.add(relation_name)
-                neighbors[relation_name] = []
-                entity_text[relation_name] = relation_name.split(":")[-1].replace("_", " ")
+            if self.paragraph_data:
+                # Add all column names to entities. We'll define their neighbors to be empty lists for
+                # now, and later add number and string entities as needed.
+                for relation_name in self.paragraph_data[0].keys():
+                    # Add relation names to entities, with no neighbors yet.
+                    entities.add(relation_name)
+                    neighbors[relation_name] = []
+                    entity_text[relation_name] = relation_name.split(":")[-1].replace("_", " ")
 
-            string_entities, numbers = self.get_entities_from_question()
-            for entity, relation_name in string_entities:
-                entities.add(entity)
-                neighbors[entity].append(relation_name)
-                neighbors[relation_name].append(entity)
-                entity_text[entity] = entity.replace("string:", "").replace("_", " ")
+                string_entities, numbers = self.get_entities_from_question()
+                for entity, relation_name in string_entities:
+                    entities.add(entity)
+                    neighbors[entity].append(relation_name)
+                    neighbors[relation_name].append(entity)
+                    entity_text[entity] = entity.replace("string:", "").replace("_", " ")
 
-            # If a word embedding is passed to the constructor, we might have entities extracted
-            # from the paragraph as well.
-            for paragragh_entity, relation_names in self.paragraph_tokens_to_keep:
-                entity_name = f"string:{paragragh_entity}"
-                entities.add(entity_name)
-                neighbors[entity_name].extend(relation_names)
-                for relation_name in relation_names:
-                    neighbors[relation_name].append(entity_name)
-                entity_text[entity_name] = paragragh_entity.lower()
+                # If a word embedding is passed to the constructor, we might have entities extracted
+                # from the paragraph as well.
+                for paragragh_entity, relation_names in self.paragraph_tokens_to_keep:
+                    entity_name = f"string:{paragragh_entity}"
+                    entities.add(entity_name)
+                    neighbors[entity_name].extend(relation_names)
+                    for relation_name in relation_names:
+                        neighbors[relation_name].append(entity_name)
+                    entity_text[entity_name] = paragragh_entity.lower()
 
-            # We add all numbers without any neighbors
-            for number, _ in numbers:
-                entities.add(number)
-                entity_text[number] = number
-                neighbors[number] = []
+                # We add all numbers without any neighbors
+                for number, _ in numbers:
+                    entities.add(number)
+                    entity_text[number] = number
+                    neighbors[number] = []
 
-            for entity, entity_neighbors in neighbors.items():
-                neighbors[entity] = list(set(entity_neighbors))
+                for entity, entity_neighbors in neighbors.items():
+                    neighbors[entity] = list(set(entity_neighbors))
 
-            # We need -1 as wild cards in dates.
-            entities.add("-1")
-            entity_text["-1"] = "-1"
-            neighbors["-1"] = []
+                # We need -1 as wild cards in dates.
+                entities.add("-1")
+                entity_text["-1"] = "-1"
+                neighbors["-1"] = []
             self._knowledge_graph = KnowledgeGraph(entities, dict(neighbors), entity_text)
         return self._knowledge_graph
 

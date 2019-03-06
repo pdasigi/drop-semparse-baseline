@@ -1,4 +1,5 @@
 import json
+import tqdm
 import os
 
 import argparse
@@ -235,7 +236,7 @@ def make_files_for_semparse(data_files_path: str,
             data.update(json.load(open(data_file)))
             LOGGER.info(f"Read data from {data_file}")
     paragraph_counter = 0
-    for paragraph_id, paragraph_data in data.items():
+    for paragraph_id, paragraph_data in tqdm.tqdm(data.items()):
         passage = paragraph_data['passage']
         processed_doc = SPACY_NLP(passage)
         coref_spans: List[List[Span]] = []

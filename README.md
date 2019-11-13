@@ -2,7 +2,7 @@
 
 Code for the semantic parsing baseline models sescribed in the following dataset paper by Dua et al.:
 
-*{DROP}: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Paragraphs*
+[**DROP: A Reading Comprehension Benchmark Requiring Discrete Reasoning Over Paragraphs**](https://www.semanticscholar.org/paper/DROP%3A-A-Reading-Comprehension-Benchmark-Requiring-Dua-Wang/dda6fb309f62e2557a071522354d8c2c897a2805)
 
 Here are the instructions for using this code:
 

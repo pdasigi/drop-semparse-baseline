@@ -1,4 +1,4 @@
-git+git://github.com/allenai/allennlp
+allennlp==0.8.4
 pylint
 mypy==0.521
 networkx==2.2

@@ -1,5 +1,3 @@
-import sys
-import os
 from typing import List, Dict, Union, Tuple, Any
 from collections import defaultdict
 import logging
@@ -7,16 +5,10 @@ import logging
 from allennlp.common import JsonDict
 from allennlp.semparse import util as semparse_util
 from allennlp.semparse.domain_languages.domain_language import ExecutionError
+from allennlp.tools import drop_eval
 
 from semparse.context.paragraph_question_context import Argument, Date
 
-ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(os.path.join(__file__, os.pardir)))))
-sys.path.insert(0, os.path.join(ROOT_PATH, 'evaluation'))
-# If you're running on beaker, the evaluation script is copied to the root directory on the Docker image by the
-# "run_with_beaker.py" script.
-sys.path.insert(0, "/")
-
-import evaluate as evaluator  # pylint: disable=wrong-import-position
 
 LOGGER = logging.getLogger(__name__)
 
@@ -60,7 +52,7 @@ class DropExecutor:
         Takes a logical form, and the answer dict from the original dataset, and returns exact match
         and f1 measures, according to the two official metrics.
         """
-        answer_string, _ = evaluator.to_string(answer_json)
+        answer_string, _ = drop_eval.answer_json_to_strings(answer_json)
         if not self.verbose:
             executor_logger = logging.getLogger('semparse.language.drop_executor')
             executor_logger.setLevel(logging.ERROR)
@@ -74,7 +66,7 @@ class DropExecutor:
             denotation_list = [str(denotation_item) for denotation_item in denotation]
         else:
             denotation_list = [str(denotation)]
-        em_score, f1_score = evaluator.get_metrics(denotation_list, answer_string)
+        em_score, f1_score = drop_eval.get_metrics(denotation_list, answer_string)
         return em_score, f1_score
 
     ## Helper functions
